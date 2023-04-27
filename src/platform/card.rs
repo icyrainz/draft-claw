@@ -43,7 +43,7 @@ impl<'de> Deserialize<'de> for CardInfluence {
                     None
                 }
             })
-        .collect();
+            .collect();
 
         Ok(CardInfluence { influences })
     }
@@ -68,31 +68,33 @@ pub struct CardType {
 
 impl<'de> Deserialize<'de> for CardType {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>, {
-            let s = String::deserialize(deserializer)?;
-            let mut tokens: Vec<&str> = s.split_whitespace().collect();
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let mut tokens: Vec<&str> = s.split_whitespace().collect();
 
-            let is_fast = tokens.contains(&"Fast");
-            if is_fast {
-                tokens.retain(|&token| token != "Fast");
-            }
-
-            let card_type = if let Some(card_type_str) = tokens.first() {
-                match *card_type_str {
-                    "Unit" => CardTypeEnum::Unit,
-                    "Spell" => CardTypeEnum::Spell,
-                    "Relic" => CardTypeEnum::Relic,
-                    "Power" => CardTypeEnum::Power,
-                    "Site" => CardTypeEnum::Site,
-                    "Curse" => CardTypeEnum::Curse,
-                    _ => CardTypeEnum::None,
-                }
-            } else {
-                CardTypeEnum::None
-            };
-
-            Ok(CardType { card_type, is_fast })
+        let is_fast = tokens.contains(&"Fast");
+        if is_fast {
+            tokens.retain(|&token| token != "Fast");
         }
+
+        let card_type = if let Some(card_type_str) = tokens.first() {
+            match *card_type_str {
+                "Unit" => CardTypeEnum::Unit,
+                "Spell" => CardTypeEnum::Spell,
+                "Relic" => CardTypeEnum::Relic,
+                "Power" => CardTypeEnum::Power,
+                "Site" => CardTypeEnum::Site,
+                "Curse" => CardTypeEnum::Curse,
+                _ => CardTypeEnum::None,
+            }
+        } else {
+            CardTypeEnum::None
+        };
+
+        Ok(CardType { card_type, is_fast })
+    }
 }
 
 #[derive(Debug, Deserialize)]
