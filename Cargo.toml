@@ -13,3 +13,4 @@ serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.96"
 image = "0.24.6"
 imageproc = "0.23.0"
+opencv = "0.80.0"

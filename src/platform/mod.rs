@@ -1,6 +1,6 @@
 mod card;
-mod match_engine;
 mod screen;
+mod match_engine;
 
 pub fn run() {
     println!("In platform!");
