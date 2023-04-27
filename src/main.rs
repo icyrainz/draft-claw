@@ -4,9 +4,6 @@
 
 mod platform;
 
-#[macro_use]
-extern crate objc;
-
 fn main() {
     println!("OS type: {}", std::env::consts::OS);
     println!("OS version: {}", std::env::consts::ARCH);

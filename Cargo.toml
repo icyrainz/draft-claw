@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 core-graphics = "0.22.3"
 core-foundation = "0.9.1"
-objc = "0.2.7"
 leptess = "0.14.0"
 serde = { version = "1.0.160", features = ["derive"] }
 serde_json = "1.0.96"
