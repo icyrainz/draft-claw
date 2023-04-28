@@ -1,4 +1,4 @@
-use super::match_engine::*;
+use super::ocr_engine::*;
 
 use core_foundation::{
     array::CFArray,
@@ -94,7 +94,7 @@ fn capture_text_from_image(
     let mut captured_text = Vec::new();
     let (screen_width, screen_height) = lt.get_image_dimensions().unwrap();
 
-    println!("Screen size: ({}, {})", screen_width, screen_height);
+    dbg!((screen_width, screen_height));
     let rectangles = vec![
         ScreenRect {
             x: 500,
@@ -125,8 +125,19 @@ fn capture_text_from_image(
     Ok(captured_text)
 }
 
+fn process_text(text_data: Vec<String>) -> String {
+    text_data.iter().fold(
+        String::new(),
+        |acc, text| { 
+            let text = text.replace(|c: char| 
+                !c.is_alphabetic(),
+                "",
+            ).to_lowercase();
+            acc + &text
+        })
+}
 
-pub fn capture_loop() {
+pub fn capture_cards_on_screen() -> String {
     let screenshot_path = get_eternal_screen_path().unwrap();
 
     match get_game_window_id() {
@@ -145,9 +156,11 @@ pub fn capture_loop() {
     match capture_text_from_image(&process_screenshot_path, false) {
         Ok(text) => {
             dbg!(&text);
+            dbg!(process_text(text))
         }
         Err(err) => {
             println!("capture text failed: {}", err);
+            "".to_string()
         }
     }
 }

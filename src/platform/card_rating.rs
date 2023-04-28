@@ -34,7 +34,6 @@ pub fn load_card_rating() -> HashMap<String, String> {
     });
 
     let all_ratings = card_ratings.values().collect::<HashSet<_>>();
-    println!("all_ratings: {:?}", all_ratings);
 
     card_ratings
 }

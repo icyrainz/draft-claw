@@ -1,4 +1,3 @@
-use dotenv::dotenv;
 use std::env;
 
 use surrealdb::Surreal;

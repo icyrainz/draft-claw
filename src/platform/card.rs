@@ -1,3 +1,5 @@
+use std::fmt::{Display, Formatter, self};
+
 use serde::{de, Deserialize, Deserializer};
 use serde_json;
 
@@ -97,28 +99,41 @@ impl<'de> Deserialize<'de> for CardType {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialOrd, Ord, PartialEq, Eq)]
 pub enum CardRarity {
-    Common,
-    Uncommon,
-    Rare,
     Legendary,
+    Rare,
+    Uncommon,
+    Common,
     Promo,
     None,
+}
+
+impl Display for CardRarity {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match *self {
+            CardRarity::Legendary => write!(f, "{:^10}", "Legendary"),
+            CardRarity::Rare => write!(f, "{:^10}", "Rare"),
+            CardRarity::Uncommon => write!(f, "{:^10}", "Uncommon"),
+            CardRarity::Common => write!(f, "{:^10}", "Common"),
+            CardRarity::Promo => write!(f, "{:^10}", "Promo"),
+            CardRarity::None => write!(f, "{:^10}", "None"),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Card {
     set_number: u32,
-    name: String,
+    pub name: String,
     #[serde(default = "no_card_text")]
     card_text: String,
     cost: u32,
     influence: CardInfluence,
     attack: i32,
     health: i32,
-    rarity: CardRarity,
+    pub rarity: CardRarity,
     #[serde(rename = "Type")]
     card_type: CardType,
     image_url: String,
@@ -135,6 +150,5 @@ pub fn load_card_data() -> Vec<Card> {
     let card_data = std::fs::read_to_string(CARD_DATA_PATH).expect("failed to read card data");
     let cards: Vec<Card> = serde_json::from_str(&card_data).expect("failed to parse card data");
 
-    dbg!(&cards[..10]);
     cards
 }
