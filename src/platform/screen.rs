@@ -84,7 +84,6 @@ fn capture_game_window(window_id: u32) -> Result<(), String> {
 
 fn capture_text_from_image(
     image_path: &str,
-    rectangles: &[ScreenRect],
     with_data: bool
 ) -> Result<Vec<String>, String> {
     let tess_data = if with_data { Some(TESS_DATA) } else { None };
@@ -93,6 +92,29 @@ fn capture_text_from_image(
     lt.set_image(image_path).expect("set image failed");
 
     let mut captured_text = Vec::new();
+    let (screen_width, screen_height) = lt.get_image_dimensions().unwrap();
+
+    println!("Screen size: ({}, {})", screen_width, screen_height);
+    let rectangles = vec![
+        ScreenRect {
+            x: 500,
+            y: 466,
+            width: 1230,
+            height: 41,
+        },
+        ScreenRect {
+            x: 500,
+            y: 941,
+            width: 1230,
+            height: 41,
+        },
+        ScreenRect {
+            x: 500,
+            y: 1400,
+            width: 1230,
+            height: 41,
+        },
+    ];
 
     for rect in rectangles {
         lt.set_rectangle(rect.x, rect.y, rect.width, rect.height);
@@ -120,16 +142,7 @@ pub fn capture_loop() {
     let process_screenshot_path = get_eternal_screen_processed_path().unwrap();
     process_image(&screenshot_path, &process_screenshot_path).unwrap();
 
-    let rectangles = vec![
-        ScreenRect {
-            x: 496,
-            y: 466,
-            width: 1230,
-            height: 41,
-        },
-    ];
-
-    match capture_text_from_image(&process_screenshot_path, &rectangles, false) {
+    match capture_text_from_image(&process_screenshot_path, false) {
         Ok(text) => {
             dbg!(&text);
         }
