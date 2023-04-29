@@ -30,8 +30,12 @@ async fn main() {
 
     actions.append(&mut bot_actions);
 
-    match cli::main(&actions).await {
-        Ok(_) => println!("Done"),
-        Err(e) => println!("Error: {}", e),
-    }
+    // match cli::main(&actions).await {
+    //     Ok(_) => println!("Done"),
+    //     Err(e) => println!("Error: {}", e),
+    // }
+    platform::run_loop().await;
+
+    // tokio::spawn(async {
+    // });
 }

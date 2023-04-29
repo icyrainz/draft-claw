@@ -2,12 +2,16 @@ use std::collections::HashSet;
 use std::io::prelude::*;
 use std::{collections::HashMap, fs::File, io::BufReader};
 
-const CARD_RATING_PATH: &str = "./resource/card_rating.txt";
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug)]
-struct CardRating {
-    name: String,
-    rating: String,
+const CARD_RATING_PATH: &str = "./resource/card_rating.txt";
+const CARD_RATING_FORMAT: &str = "14.0";
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CardRating {
+    pub format: String,
+    pub name: String,
+    pub rating: String,
 }
 
 pub fn load_card_rating() -> HashMap<String, String> {
@@ -36,4 +40,15 @@ pub fn load_card_rating() -> HashMap<String, String> {
     let all_ratings = card_ratings.values().collect::<HashSet<_>>();
 
     card_ratings
+}
+
+pub fn get_card_rating_list() -> Vec<CardRating> {
+    load_card_rating()
+        .iter()
+        .map(|(name, rating)| CardRating {
+            format: CARD_RATING_FORMAT.to_string(),
+            name: name.to_string(),
+            rating: rating.to_string(),
+        })
+        .collect()
 }
