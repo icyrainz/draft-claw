@@ -1,20 +1,12 @@
-use std::{pin::Pin, future::Future};
+use std::{future::Future, pin::Pin};
 
-struct HelpAnError {}
-
-pub fn wrap_action<
-    C: Fn() -> F + 'static,
-    F: Future<Output = ()> + 'static,
->(
-    do_work_hard: C,
-) -> impl Fn() -> Pin<Box<dyn Future<Output = ()>>> {
+pub fn wrap_action<'a, C: Fn() -> F + 'static, F: Future<Output = ()> + 'static>(
+    action: C,
+) -> impl Fn() -> Pin<Box<dyn Future<Output = ()>>> + 'a {
     move || {
-        let fut = do_work_hard();
+        let fut = action();
         Box::pin(async move {
-            println!("I'm doin my chores Ma, I promise!");
-            // **help** - if I uncomment this it fails!
             drop(fut.await);
-            println!("Yay! The chores are now complit.");
         })
     }
 }
@@ -22,7 +14,7 @@ pub fn wrap_action<
 pub struct Action {
     pub cmd: &'static str,
     pub desc: &'static str,
-    pub action:Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>>, 
+    pub action: Box<dyn Fn() -> Pin<Box<dyn Future<Output = ()>>>>,
 }
 
 impl Action {
@@ -42,4 +34,3 @@ impl Action {
         (self.action)().await;
     }
 }
-

@@ -1,7 +1,6 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::{env, collections::HashMap, sync::Arc, thread};
-use dotenv::dotenv;
 
 use tokio::{sync::Mutex, task::JoinHandle};
 use tokio::runtime::Handle;
@@ -33,53 +32,22 @@ async fn create_bot() {
         data.insert::<BotData>(HashMap::new());
     }
 
-    if let Err(why) = client.start().await {
-        println!("Client error: {:?}", why);
-    }
+    tokio::spawn(async move {
+        if let Err(why) = client.start().await {
+            println!("Client error: {:?}", why);
+        }
+    });
     println!("Bot started");
 }
 
-pub struct BotManager {
-    bot_thread: Option<JoinHandle<()>>,
-}
-
-impl BotManager {
-    pub fn new() -> Self {
-        Self {
-            bot_thread: None,
-        }
-    }
-
-    pub fn cli_actions(&self) -> Vec<Action> {
-        vec![
-            Action::new(
-                "start",
-                "Start the bot",
-                 wrap_action(create_bot),
-            )
-        ]
-    }
-
-    pub async fn start_bot(&mut self) {
-        if let Some(thread) = &self.bot_thread {
-            if !thread.is_finished() {
-                println!("Bot already started");
-                return;
-            }
-        }
-
-    }
-
-    pub fn stop_bot(&mut self) {
-        if let Some(thread) = &self.bot_thread {
-            if !thread.is_finished() {
-                println!("Stopping bot");
-                thread.abort();
-            } else {
-                println!("Bot is not running");
-            }
-        }
-    }
+pub fn cli_actions() -> Vec<Action> {
+    vec![
+        Action::new(
+            "start",
+            "Start the bot",
+            wrap_action(create_bot),
+        )
+    ]
 }
 
 struct BotData;

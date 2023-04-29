@@ -48,9 +48,11 @@ async fn respond(actions: &Vec<Action>, line: &str) -> Result<bool, Box<dyn Erro
                 .find(|action| action.cmd == name)
                 .ok_or("error: Invalid command")?;
             action.invoke().await;
+            stdout().flush()?;
         }
         None => unreachable!("subcommand required"),
     }
+
 
     Ok(false)
 }
@@ -89,9 +91,7 @@ fn cli(actions: &Vec<Action>) -> Command {
                 .help_template(COMMAND_TEMPLATE),
         );
 
-    println!("actions lens: {}", actions.len());
     for action in actions.iter() {
-        dbg!(&action.cmd);
         cmd = cmd.subcommand(
             Command::new(action.cmd)
                 .about(action.desc)

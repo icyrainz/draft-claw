@@ -1,4 +1,3 @@
-use dotenv::dotenv;
 use std::collections::HashMap;
 
 mod card;
@@ -9,7 +8,6 @@ mod card_rating;
 mod card_matcher;
 
 pub fn run() {
-    dotenv().ok();
 
     let cards = card::load_card_data();
 

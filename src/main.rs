@@ -26,9 +26,12 @@ async fn main() {
         ),
     ];
 
-    let bot_manager = discord_bot::BotManager::new();
-    let mut bot_actions = bot_manager.cli_actions();
+    let mut bot_actions = discord_bot::cli_actions();
 
     actions.append(&mut bot_actions);
-    cli::main(&actions).await;
+
+    match cli::main(&actions).await {
+        Ok(_) => println!("Done"),
+        Err(e) => println!("Error: {}", e),
+    }
 }
