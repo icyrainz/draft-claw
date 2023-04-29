@@ -1,5 +1,10 @@
-use std::{env, collections::HashMap};
+use std::future::Future;
+use std::pin::Pin;
+use std::{env, collections::HashMap, sync::Arc, thread};
 use dotenv::dotenv;
+
+use tokio::{sync::Mutex, task::JoinHandle};
+use tokio::runtime::Handle;
 
 use serenity::{
     async_trait,
@@ -7,10 +12,77 @@ use serenity::{
     prelude::*,
 };
 
+use crate::action::Action;
+use crate::action::wrap_action;
+
 const DRAFT_COMMAND: &str = "!draft";
 
-struct BotData;
+async fn create_bot() {
+    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+    let intents = 
+        GatewayIntents::GUILD_MESSAGES
+        | GatewayIntents::DIRECT_MESSAGES
+        | GatewayIntents::MESSAGE_CONTENT;
 
+    let mut client = Client::builder(&token, intents)
+        .event_handler(BotHandler)
+        .await
+        .expect("Err creating client");
+    {
+        let mut data = client.data.write().await;
+        data.insert::<BotData>(HashMap::new());
+    }
+
+    if let Err(why) = client.start().await {
+        println!("Client error: {:?}", why);
+    }
+    println!("Bot started");
+}
+
+pub struct BotManager {
+    bot_thread: Option<JoinHandle<()>>,
+}
+
+impl BotManager {
+    pub fn new() -> Self {
+        Self {
+            bot_thread: None,
+        }
+    }
+
+    pub fn cli_actions(&self) -> Vec<Action> {
+        vec![
+            Action::new(
+                "start",
+                "Start the bot",
+                 wrap_action(create_bot),
+            )
+        ]
+    }
+
+    pub async fn start_bot(&mut self) {
+        if let Some(thread) = &self.bot_thread {
+            if !thread.is_finished() {
+                println!("Bot already started");
+                return;
+            }
+        }
+
+    }
+
+    pub fn stop_bot(&mut self) {
+        if let Some(thread) = &self.bot_thread {
+            if !thread.is_finished() {
+                println!("Stopping bot");
+                thread.abort();
+            } else {
+                println!("Bot is not running");
+            }
+        }
+    }
+}
+
+struct BotData;
 impl TypeMapKey for BotData {
     type Value = HashMap<String, String>;
 }
@@ -66,27 +138,4 @@ impl EventHandler for BotHandler {
     async fn ready(&self, _: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
     }
-}
-
-#[tokio::main]
-pub async fn run() {
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
-    let intents = 
-        GatewayIntents::GUILD_MESSAGES
-        | GatewayIntents::DIRECT_MESSAGES
-        | GatewayIntents::MESSAGE_CONTENT;
-
-    let mut client = Client::builder(&token, intents)
-        .event_handler(BotHandler)
-        .await
-        .expect("Err creating client");
-    {
-        let mut data = client.data.write().await;
-        data.insert::<BotData>(HashMap::new());
-    }
-
-    if let Err(why) = client.start().await {
-        println!("Client error: {:?}", why);
-    }
-    println!("Bot started");
 }

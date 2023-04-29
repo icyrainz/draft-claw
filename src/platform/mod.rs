@@ -7,7 +7,6 @@ mod ocr_engine;
 mod db_access;
 mod card_rating;
 mod card_matcher;
-mod discord_bot;
 
 pub fn run() {
     dotenv().ok();
@@ -37,7 +36,5 @@ pub fn run() {
     for card in matched_cards.iter() {
         println!("[{}] {:30}: {}", card.rarity, card.name, card_ratings.get(&card.name).unwrap());
     }
-
-    // discord_bot::run();
 }
 
