@@ -63,7 +63,6 @@ impl TypeMapKey for BotCache {
 }
 
 async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
-    println!("Getting draft data");
     let draft_data = "[   Rare   ] Evening Hare                  : S-
 [ Uncommon ] First Watch                   : F
 [ Uncommon ] Colony Steward                : C-
@@ -104,7 +103,9 @@ async fn register_user(ctx: &Context, user: &str, game_id: &str) {
 
     {
         let mut cache = cache_lock.write().await;
-        cache.entry(String::from(user)).or_insert(String::from(game_id));
+        cache.entry(String::from(user))
+            .and_modify(|e| *e = game_id.to_string())
+            .or_insert(game_id.to_string());
     }
 }
 
