@@ -6,7 +6,7 @@ use surrealdb::engine::remote::http::{Https, Client};
 use surrealdb::opt::auth::Root;
 
 use super::card_rating::CardRating;
-use super::draft_game::DraftRecord;
+use super::draft_data::DraftRecord;
 
 async fn get_db() -> Result<Surreal<Client>, surrealdb::Error> {
     let host = env::var("SURREAL_DB_HOST").expect("SURREAL_DB_HOST not set");

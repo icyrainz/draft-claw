@@ -6,7 +6,7 @@ use crate::action::Action;
 
 use dotenv::dotenv;
 
-mod platform;
+pub mod platform;
 mod cli;
 mod discord_bot;
 mod action;
@@ -30,12 +30,7 @@ async fn main() {
 
     actions.append(&mut bot_actions);
 
-    // match cli::main(&actions).await {
-    //     Ok(_) => println!("Done"),
-    //     Err(e) => println!("Error: {}", e),
-    // }
-    platform::run_loop().await;
+    // platform::run_loop().await;
 
-    // tokio::spawn(async {
-    // });
+    discord_bot::main().await;
 }

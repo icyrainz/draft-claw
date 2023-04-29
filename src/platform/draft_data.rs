@@ -1,6 +1,6 @@
 use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DraftRecord {
     pub game_id: String,
     pub pick: DraftPick,
@@ -10,7 +10,7 @@ pub struct DraftRecord {
     pub decklist_text: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DraftPick {
     pub pick: String,
 }

@@ -1,11 +1,11 @@
-use std::fmt::{Display, Formatter, self};
+use std::{fmt::{Display, Formatter, self}, collections::HashMap};
 
 use serde::{de, Deserialize, Deserializer};
 use serde_json;
 
 const CARD_DATA_PATH: &str = "./resource/eternal-cards.json";
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Influence {
     Fire,
     Time,
@@ -16,7 +16,7 @@ pub enum Influence {
     None,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CardInfluence {
     influences: Vec<Influence>,
 }
@@ -51,7 +51,7 @@ impl<'de> Deserialize<'de> for CardInfluence {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum CardTypeEnum {
     Unit,
     Spell,
@@ -62,7 +62,7 @@ pub enum CardTypeEnum {
     None,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CardType {
     card_type: CardTypeEnum,
     is_fast: bool,
@@ -99,7 +99,7 @@ impl<'de> Deserialize<'de> for CardType {
     }
 }
 
-#[derive(Debug, Deserialize, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialOrd, Ord, PartialEq, Eq)]
 pub enum CardRarity {
     Legendary,
     Rare,
@@ -122,7 +122,7 @@ impl Display for CardRarity {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Card {
     set_number: u32,
@@ -136,7 +136,7 @@ pub struct Card {
     pub rarity: CardRarity,
     #[serde(rename = "Type")]
     card_type: CardType,
-    image_url: String,
+    pub image_url: String,
     details_url: String,
     deck_buildable: bool,
     set_name: String,
@@ -151,4 +151,15 @@ pub fn load_card_data() -> Vec<Card> {
     let cards: Vec<Card> = serde_json::from_str(&card_data).expect("failed to parse card data");
 
     cards
+}
+
+pub fn load_card_hashmap_by_name() -> HashMap<String, Card> {
+    let cards = load_card_data();
+    let mut card_hashmap = HashMap::new();
+
+    for card in cards {
+        card_hashmap.insert(card.name.clone(), card);
+    }
+
+    card_hashmap
 }

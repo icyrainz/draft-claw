@@ -15,7 +15,7 @@ image = "0.24.6"
 imageproc = "0.23.0"
 opencv = "0.80.0"
 surrealdb = { version = "1.0.0-beta.9", features = ["http", "protocol-http"] }
-tokio = { version = "1.28.0", features = ["macros"] }
+tokio = { version = "1.28.0", features = ["macros", "signal"] }
 dotenv = "0.15.0"
 strsim = "0.10.0"
 serenity = { version = "0.11.5", default_features = false, features = ["rustls_backend", "client", "gateway", "model"] }

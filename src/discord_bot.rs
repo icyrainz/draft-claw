@@ -9,12 +9,18 @@ use serenity::{
     async_trait,
     model::{channel::Message, gateway::Ready},
     prelude::*,
+    model::prelude::*,
 };
 
 use crate::action::Action;
 use crate::action::wrap_action;
 
+use crate::platform;
+use crate::platform::card::Card;
+use crate::platform::draft_data::DraftRecord;
+
 const DRAFT_COMMAND: &str = "!draft";
+const CARD_COMMAND: &str = "!card";
 
 async fn create_bot() {
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
@@ -27,10 +33,6 @@ async fn create_bot() {
         .event_handler(BotHandler)
         .await
         .expect("Err creating client");
-    {
-        let mut data = client.data.write().await;
-        data.insert::<BotData>(HashMap::new());
-    }
 
     tokio::spawn(async move {
         if let Err(why) = client.start().await {
@@ -50,9 +52,14 @@ pub fn cli_actions() -> Vec<Action> {
     ]
 }
 
-struct BotData;
-impl TypeMapKey for BotData {
-    type Value = HashMap<String, String>;
+struct BotCardData;
+impl TypeMapKey for BotCardData {
+    type Value = Arc<HashMap<String, Card>>;
+}
+
+struct BotCache;
+impl TypeMapKey for BotCache {
+    type Value = Arc<RwLock<HashMap<String, String>>>;
 }
 
 async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
@@ -70,16 +77,107 @@ async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
 [  Common  ] Refuse Roller                 : D
 [  Common  ] Maggot Swarm                  : F+".to_string();
 
-    let mut data = ctx.data.write().await;
-    let bot_data = data.get_mut::<BotData>().unwrap();
-    bot_data.insert(game_id.to_string(), draft_data);
+    draft_data
+}
 
-    drop(data);
+async fn get_card(ctx: &Context, card_name: &str) -> Option<Card> {
+    let card_data = {
+        let data = ctx.data.read().await;
+        data.get::<BotCardData>().expect("Expected CardData in TypeMap.").clone()
+    };
 
-    let data = ctx.data.read().await;
-    let bot_data = data.get::<BotData>().unwrap();
-    let bot_data = bot_data.get(game_id).unwrap().into();
-    bot_data
+    println!("Getting card {} from data {}", card_name, card_data.len());
+    card_data.get(card_name).cloned()
+}
+
+async fn send_message(ctx: &Context, channel_id: ChannelId, msg: &str) {
+    if let Err(why) = channel_id.say(&ctx.http, msg).await {
+        println!("Error sending message: {:?}", why);
+    }
+}
+
+async fn register_user(ctx: &Context, user: &str, game_id: &str) {
+    let cache_lock = {
+        let data = ctx.data.read().await;
+        data.get::<BotCache>().expect("Expected BotCache in TypeMap.").clone()
+    };
+
+    {
+        let mut cache = cache_lock.write().await;
+        cache.entry(String::from(user)).or_insert(String::from(game_id));
+    }
+}
+
+async fn get_user_game(ctx: &Context, user: &str) -> Option<String> {
+    let cache_lock = {
+        let data = ctx.data.read().await;
+        data.get::<BotCache>().expect("Expected BotCache in TypeMap.").clone()
+    };
+
+    let cache = cache_lock.read().await;
+    cache.get(user).cloned()
+}
+
+async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User, args: &str) {
+
+    let mut cmd_parts = args.splitn(2, char::is_whitespace);
+    let cmd = cmd_parts.next();
+
+    match cmd {
+        Some(sub_cmd) => {
+            let args = cmd_parts.next().unwrap_or("");
+
+            match sub_cmd {
+                "reg" => {
+                    let game_id = args;
+
+                    register_user(&ctx, &user.name, game_id).await;
+
+                    let reply = format!("Game [{}] is registered to {}", game_id, &user.name);
+                    send_message(&ctx, channel_id, &reply).await;
+                }
+                _ => {
+                    let game_id = get_user_game(&ctx, &user.name).await;
+
+                    let game_id = match game_id {
+                        Some(game_id) => {
+                            let reply = format!("Game [{}]", game_id);
+                            send_message(&ctx, channel_id, &reply).await;
+
+                            game_id
+                        },
+                        None => {
+                            let reply = format!("No game registered to {}", &user.name);
+                            send_message(&ctx, channel_id, &reply).await;
+
+                            "123".to_string()
+                        }
+                    };
+
+                    let draft_data = get_draft_data(&ctx, &game_id).await;
+                    send_message(&ctx, channel_id, &draft_data).await;                    
+                } 
+            }
+        },
+        None => {
+            send_message(&ctx, channel_id, "Unknown command").await;
+        }
+    }
+}
+
+async fn process_card_command(ctx: &Context, channel_id: ChannelId, user: User, args: &str) {
+    let card_name = args;
+    let found_card = get_card(&ctx, &card_name).await;
+    match found_card {
+        Some(card) => {
+            let reply = format!("{}", card.image_url.to_string());
+            send_message(&ctx, channel_id, &reply).await;
+        },
+        None => {
+            let reply = format!("Card {} not found", card_name);
+            send_message(&ctx, channel_id, &reply).await;
+        }
+    }
 }
 
 struct BotHandler;
@@ -87,23 +185,50 @@ struct BotHandler;
 #[async_trait]
 impl EventHandler for BotHandler {
     async fn message(&self, ctx: Context, msg: Message) {
-        match msg.content.as_str() {
+        let mut cmd_parts = msg.content.splitn(2, char::is_whitespace);
+        let cmd = cmd_parts.next().ok_or(()).unwrap();
+        let args = cmd_parts.next().unwrap_or("");
+
+        match cmd {
             DRAFT_COMMAND => {
-                let game_id = "123";
-                let draft_data = get_draft_data(&ctx, game_id).await;
-                if let Err(why) = msg.channel_id.say(&ctx.http, draft_data).await {
-                    println!("Error sending message: {:?}", why);
-                }
+                process_draft_command(&ctx, msg.channel_id, msg.author, args).await;
+            },
+            CARD_COMMAND => {
+                process_card_command(&ctx, msg.channel_id, msg.author, args).await;
             },
             "!ping" => {
-                if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!").await {
-                    println!("Error sending message: {:?}", why);
-                }
+                send_message(&ctx, msg.channel_id, "Pong!").await;
             },
             _ => {}
         };
     }
     async fn ready(&self, _: Context, ready: Ready) {
         println!("{} is connected!", ready.user.name);
+    }
+}
+
+
+pub async fn main() {
+
+    let token = env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN in the environment");
+    let intents = 
+        GatewayIntents::GUILD_MESSAGES
+        | GatewayIntents::DIRECT_MESSAGES
+        | GatewayIntents::MESSAGE_CONTENT;
+
+    let mut client = Client::builder(&token, intents)
+        .event_handler(BotHandler)
+        .await
+        .expect("Err creating client");
+    {
+        let mut data = client.data.write().await;
+        let card_data = Arc::new(platform::card::load_card_hashmap_by_name());
+        data.insert::<BotCardData>(card_data);
+
+        data.insert::<BotCache>(Arc::new(RwLock::new(HashMap::new())));
+    }
+
+    if let Err(why) = client.start().await {
+        println!("Client error: {:?}", why);
     }
 }

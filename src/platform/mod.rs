@@ -1,12 +1,12 @@
 use std::{collections::HashMap, time};
 
-mod card;
+pub mod card;
 mod screen;
 mod ocr_engine;
 mod db_access;
 mod card_rating;
 mod card_matcher;
-mod draft_game;
+pub mod draft_data;
 
 pub async fn run_loop() {
     // loop {
