@@ -13,14 +13,17 @@ pub async fn run_loop() {
     //     get_draft_selection_text();
     //     std::thread::sleep(time::Duration::from_secs(5));
     // }
-
-    upload_card_rating().await;
 }
 
 pub async fn upload_card_rating() {
     let card_ratings = card_rating::get_card_rating_list();
 
     db_access::insert_card_rating(&card_ratings).await.unwrap();
+}
+
+pub fn get_rating_card_onscreen(card_names: &[String]) -> Vec<String> {
+    let cards_on_screen = screen::capture_cards_on_screen();
+    card_matcher::find_matches(&cards_on_screen, card_names)
 }
 
 pub fn get_draft_selection_text() -> String {
@@ -37,7 +40,7 @@ pub fn get_draft_selection_text() -> String {
     let card_ratings = card_rating::load_card_rating();
     let draft_card_names = card_ratings.keys().cloned().collect::<Vec<String>>();
 
-    let matched_card_names = card_matcher::get_rating_card_onscreen(&draft_card_names);
+    let matched_card_names = get_rating_card_onscreen(&draft_card_names);
     let mut matched_cards = cards.iter().filter(|card| {
         matched_card_names.contains(&card.name)
     }).collect::<Vec<_>>();

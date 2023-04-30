@@ -1,19 +1,19 @@
 use std::future::Future;
 use std::pin::Pin;
-use std::{env, collections::HashMap, sync::Arc, thread};
+use std::{collections::HashMap, env, sync::Arc, thread};
 
-use tokio::{sync::Mutex, task::JoinHandle};
 use tokio::runtime::Handle;
+use tokio::{sync::Mutex, task::JoinHandle};
 
 use serenity::{
     async_trait,
+    model::prelude::*,
     model::{channel::Message, gateway::Ready},
     prelude::*,
-    model::prelude::*,
 };
 
-use crate::action::Action;
 use crate::action::wrap_action;
+use crate::action::Action;
 
 use crate::platform;
 use crate::platform::card::Card;
@@ -24,8 +24,7 @@ const CARD_COMMAND: &str = "!card";
 
 async fn create_bot() {
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
-    let intents = 
-        GatewayIntents::GUILD_MESSAGES
+    let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
@@ -43,13 +42,11 @@ async fn create_bot() {
 }
 
 pub fn cli_actions() -> Vec<Action> {
-    vec![
-        Action::new(
-            "start",
-            "Start the bot",
-            wrap_action(create_bot),
-        )
-    ]
+    vec![Action::new(
+        "start",
+        "Start the bot",
+        wrap_action(create_bot),
+    )]
 }
 
 struct BotCardData;
@@ -74,7 +71,8 @@ async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
 [  Common  ] Daring Leap                   : D-
 [  Common  ] Twilight Lady                 : C+
 [  Common  ] Refuse Roller                 : D
-[  Common  ] Maggot Swarm                  : F+".to_string();
+[  Common  ] Maggot Swarm                  : F+"
+        .to_string();
 
     draft_data
 }
@@ -82,7 +80,9 @@ async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
 async fn get_card(ctx: &Context, card_name: &str) -> Option<Card> {
     let card_data = {
         let data = ctx.data.read().await;
-        data.get::<BotCardData>().expect("Expected CardData in TypeMap.").clone()
+        data.get::<BotCardData>()
+            .expect("Expected CardData in TypeMap.")
+            .clone()
     };
 
     println!("Getting card {} from data {}", card_name, card_data.len());
@@ -98,12 +98,15 @@ async fn send_message(ctx: &Context, channel_id: ChannelId, msg: &str) {
 async fn register_user(ctx: &Context, user: &str, game_id: &str) {
     let cache_lock = {
         let data = ctx.data.read().await;
-        data.get::<BotCache>().expect("Expected BotCache in TypeMap.").clone()
+        data.get::<BotCache>()
+            .expect("Expected BotCache in TypeMap.")
+            .clone()
     };
 
     {
         let mut cache = cache_lock.write().await;
-        cache.entry(String::from(user))
+        cache
+            .entry(String::from(user))
             .and_modify(|e| *e = game_id.to_string())
             .or_insert(game_id.to_string());
     }
@@ -112,7 +115,9 @@ async fn register_user(ctx: &Context, user: &str, game_id: &str) {
 async fn get_user_game(ctx: &Context, user: &str) -> Option<String> {
     let cache_lock = {
         let data = ctx.data.read().await;
-        data.get::<BotCache>().expect("Expected BotCache in TypeMap.").clone()
+        data.get::<BotCache>()
+            .expect("Expected BotCache in TypeMap.")
+            .clone()
     };
 
     let cache = cache_lock.read().await;
@@ -120,7 +125,6 @@ async fn get_user_game(ctx: &Context, user: &str) -> Option<String> {
 }
 
 async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User, args: &str) {
-
     let mut cmd_parts = args.splitn(2, char::is_whitespace);
     let cmd = cmd_parts.next();
 
@@ -146,7 +150,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             send_message(&ctx, channel_id, &reply).await;
 
                             game_id
-                        },
+                        }
                         None => {
                             let reply = format!("No game registered to {}", &user.name);
                             send_message(&ctx, channel_id, &reply).await;
@@ -156,10 +160,10 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                     };
 
                     let draft_data = get_draft_data(&ctx, &game_id).await;
-                    send_message(&ctx, channel_id, &draft_data).await;                    
-                } 
+                    send_message(&ctx, channel_id, &draft_data).await;
+                }
             }
-        },
+        }
         None => {
             send_message(&ctx, channel_id, "Unknown command").await;
         }
@@ -173,7 +177,7 @@ async fn process_card_command(ctx: &Context, channel_id: ChannelId, user: User, 
         Some(card) => {
             let reply = format!("{}", card.image_url.to_string());
             send_message(&ctx, channel_id, &reply).await;
-        },
+        }
         None => {
             let reply = format!("Card {} not found", card_name);
             send_message(&ctx, channel_id, &reply).await;
@@ -193,13 +197,13 @@ impl EventHandler for BotHandler {
         match cmd {
             DRAFT_COMMAND => {
                 process_draft_command(&ctx, msg.channel_id, msg.author, args).await;
-            },
+            }
             CARD_COMMAND => {
                 process_card_command(&ctx, msg.channel_id, msg.author, args).await;
-            },
+            }
             "!ping" => {
                 send_message(&ctx, msg.channel_id, "Pong!").await;
-            },
+            }
             _ => {}
         };
     }
@@ -208,12 +212,9 @@ impl EventHandler for BotHandler {
     }
 }
 
-
 pub async fn main() {
-
     let token = env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN in the environment");
-    let intents = 
-        GatewayIntents::GUILD_MESSAGES
+    let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 

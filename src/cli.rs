@@ -31,8 +31,7 @@ pub async fn main(actions: &Vec<Action>) -> Result<(), Box<dyn Error>> {
 
 async fn respond(actions: &Vec<Action>, line: &str) -> Result<bool, Box<dyn Error>> {
     let args = shlex::split(line).ok_or("error: Invalid quoting")?;
-    let matches = cli(actions)
-        .try_get_matches_from(args)?;
+    let matches = cli(actions).try_get_matches_from(args)?;
     match matches.subcommand() {
         Some(("ping", _matches)) => {
             writeln!(stdout(), "Pong")?;
@@ -44,7 +43,8 @@ async fn respond(actions: &Vec<Action>, line: &str) -> Result<bool, Box<dyn Erro
             return Ok(true);
         }
         Some((name, _matches)) => {
-            let action = actions.iter()
+            let action = actions
+                .iter()
                 .find(|action| action.cmd == name)
                 .ok_or("error: Invalid command")?;
             action.invoke().await;
@@ -52,7 +52,6 @@ async fn respond(actions: &Vec<Action>, line: &str) -> Result<bool, Box<dyn Erro
         }
         None => unreachable!("subcommand required"),
     }
-
 
     Ok(false)
 }
@@ -106,7 +105,6 @@ fn readline() -> Result<String, Box<dyn Error>> {
     write!(stdout(), "> ")?;
     stdout().flush()?;
     let mut buffer = String::new();
-    stdin()
-        .read_line(&mut buffer)?;
+    stdin().read_line(&mut buffer)?;
     Ok(buffer)
 }
