@@ -5,8 +5,9 @@ use surrealdb::Surreal;
 use surrealdb::engine::remote::http::{Https, Client};
 use surrealdb::opt::auth::Root;
 
-use super::card_rating::CardRating;
-use super::draft_data::DraftRecord;
+use crate::models::draft_data::*;
+use crate::models::card::*;
+use crate::models::card_rating::*;
 
 async fn get_db() -> Result<Surreal<Client>, surrealdb::Error> {
     let host = env::var("SURREAL_DB_HOST").expect("SURREAL_DB_HOST not set");
@@ -33,7 +34,7 @@ pub async fn insert_draft_record(draft_records: &Vec<DraftRecord>) -> surrealdb:
     let db = get_db().await?;
 
     for record in draft_records {
-        let record_id = format!("{}-{}", record.game_id, record.pick.pick);
+        let record_id = format!("{}-{}", record.game_id, record.pick.pick_str);
         let db_record: DraftRecord = 
             db.create(("draft_record", record_id))
             .content(record)

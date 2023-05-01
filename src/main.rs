@@ -2,14 +2,13 @@
 #![allow(unused_imports)]
 #![allow(unused_variables)]
 
-use crate::action::Action;
-
 use dotenv::dotenv;
 
-pub mod platform;
-mod cli;
+mod context;
+mod db_access;
 mod discord_bot;
-mod action;
+mod models;
+mod app;
 
 #[tokio::main]
 async fn main() {
@@ -18,19 +17,7 @@ async fn main() {
 
     dotenv().ok();
 
-    let mut actions = vec![
-        Action::new(
-            "do",
-            "Do something",
-            || { Box::pin(async { println!("Doing something"); }) },
-        ),
-    ];
+    let context = context::create_context();
 
-    let mut bot_actions = discord_bot::cli_actions();
-
-    actions.append(&mut bot_actions);
-
-    // platform::run_loop().await;
-
-    discord_bot::main().await;
+    app::main(&context).await;
 }

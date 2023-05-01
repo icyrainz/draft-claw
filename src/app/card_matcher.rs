@@ -1,4 +1,4 @@
-use crate::platform::{card_rating, screen};
+use crate::app::screen;
 
 use std::collections::{HashMap, HashSet};
 
@@ -38,7 +38,7 @@ mod test {
     #[test]
     fn tesc_find_matches() {
         let ocr_text = "This is a test carda string card b";
-        let card_names = vec!["card a".to_string(), "card b".to_string()];
+        let card_names = vec!["card b".to_string(), "card a".to_string()];
         let matches = find_matches(ocr_text, &card_names);
         assert_eq!(matches, vec!["card a".to_string(), "card b".to_string()]);
     }

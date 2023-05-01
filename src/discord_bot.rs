@@ -12,12 +12,9 @@ use serenity::{
     prelude::*,
 };
 
-use crate::action::wrap_action;
-use crate::action::Action;
-
-use crate::platform;
-use crate::platform::card::Card;
-use crate::platform::draft_data::DraftRecord;
+use crate::app;
+use crate::models::draft_data::*;
+use crate::models::card::*;
 
 const DRAFT_COMMAND: &str = "!draft";
 const CARD_COMMAND: &str = "!card";
@@ -39,14 +36,6 @@ async fn create_bot() {
         }
     });
     println!("Bot started");
-}
-
-pub fn cli_actions() -> Vec<Action> {
-    vec![Action::new(
-        "start",
-        "Start the bot",
-        wrap_action(create_bot),
-    )]
 }
 
 struct BotCardData;
@@ -224,7 +213,7 @@ pub async fn main() {
         .expect("Err creating client");
     {
         let mut data = client.data.write().await;
-        let card_data = Arc::new(platform::card::load_card_hashmap_by_name());
+        let card_data = Arc::new(app::load_card_hashmap_by_name());
         data.insert::<BotCardData>(card_data);
 
         data.insert::<BotCache>(Arc::new(RwLock::new(HashMap::new())));

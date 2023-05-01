@@ -3,8 +3,6 @@ use std::{fmt::{Display, Formatter, self}, collections::HashMap};
 use serde::{de, Deserialize, Deserializer};
 use serde_json;
 
-const CARD_DATA_PATH: &str = "./resource/eternal-cards.json";
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum Influence {
     Fire,
@@ -144,22 +142,4 @@ pub struct Card {
 
 fn no_card_text() -> String {
     String::from("No card text")
-}
-
-pub fn load_card_data() -> Vec<Card> {
-    let card_data = std::fs::read_to_string(CARD_DATA_PATH).expect("failed to read card data");
-    let cards: Vec<Card> = serde_json::from_str(&card_data).expect("failed to parse card data");
-
-    cards
-}
-
-pub fn load_card_hashmap_by_name() -> HashMap<String, Card> {
-    let cards = load_card_data();
-    let mut card_hashmap = HashMap::new();
-
-    for card in cards {
-        card_hashmap.insert(card.name.clone(), card);
-    }
-
-    card_hashmap
 }
