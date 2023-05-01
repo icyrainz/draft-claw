@@ -12,6 +12,35 @@ pub struct DraftRecord {
     pub decklist_text: String,
 }
 
+impl DraftRecord {
+    pub fn new(game_id: String, pick: DraftPick) -> Self {
+        DraftRecord {
+            game_id,
+            pick,
+            selection_cards: Vec::new(),
+            decklist_cards: Vec::new(),
+            selection_text: String::new(),
+            decklist_text: String::new(),
+        }
+    }
+
+    pub fn add_selection_card(&mut self, card_name: String) {
+        self.selection_cards.push(card_name);
+    }
+
+    pub fn add_decklist_card(&mut self, card_name: String) {
+        self.decklist_cards.push(card_name);
+    }
+
+    pub fn set_selection_text(&mut self, text: String) {
+        self.selection_text = text;
+    }
+
+    pub fn set_decklist_text(&mut self, text: String) {
+        self.decklist_text = text;
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DraftPick {
     pub pick_id: u8,

@@ -20,9 +20,9 @@ pub fn create_context() -> Context {
     let project_dirs = ProjectDirs::from(APP_QUALIFIER, APP_AUTHOR, APP_NAME)
         .expect("Failed to get the project directory");
 
-    dbg!(&project_dirs);
     let runtime_dir = project_dirs
         .data_local_dir();
+    println!("Runtime directory: {:?}", runtime_dir);
 
     std::fs::create_dir_all(&runtime_dir).expect("Failed to create the runtime directory");
 

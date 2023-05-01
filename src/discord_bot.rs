@@ -12,7 +12,7 @@ use serenity::{
     prelude::*,
 };
 
-use crate::app;
+use crate::{app, db_access};
 use crate::models::draft_data::*;
 use crate::models::card::*;
 
@@ -49,19 +49,27 @@ impl TypeMapKey for BotCache {
 }
 
 async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
-    let draft_data = "[   Rare   ] Evening Hare                  : S-
-[ Uncommon ] First Watch                   : F
-[ Uncommon ] Colony Steward                : C-
-[ Uncommon ] Elite Myrmidon                : A-
-[  Common  ] Cobalt Acolyte                : C
-[  Common  ] Midnight Hunter               : C+
-[  Common  ] Highpeak Rider                : D
-[  Common  ] Apprentice Ranger             : C+
-[  Common  ] Daring Leap                   : D-
-[  Common  ] Twilight Lady                 : C+
-[  Common  ] Refuse Roller                 : D
-[  Common  ] Maggot Swarm                  : F+"
-        .to_string();
+//     let draft_data = "[   Rare   ] Evening Hare                  : S-
+// [ Uncommon ] First Watch                   : F
+// [ Uncommon ] Colony Steward                : C-
+// [ Uncommon ] Elite Myrmidon                : A-
+// [  Common  ] Cobalt Acolyte                : C
+// [  Common  ] Midnight Hunter               : C+
+// [  Common  ] Highpeak Rider                : D
+// [  Common  ] Apprentice Ranger             : C+
+// [  Common  ] Daring Leap                   : D-
+// [  Common  ] Twilight Lady                 : C+
+// [  Common  ] Refuse Roller                 : D
+// [  Common  ] Maggot Swarm                  : F+"
+//         .to_string();
+
+    let draft_data = 
+        match db_access::get_last_draft_record(game_id).await {
+            Ok(Some(record)) => {
+                record.selection_text
+            }
+            _ => "No data".to_string(),
+        };
 
     draft_data
 }
@@ -144,7 +152,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             let reply = format!("No game registered to {}", &user.name);
                             send_message(&ctx, channel_id, &reply).await;
 
-                            "123".to_string()
+                            "nDyQIWGt".to_string()
                         }
                     };
 

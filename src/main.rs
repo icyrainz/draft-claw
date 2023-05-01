@@ -19,5 +19,6 @@ async fn main() {
 
     let context = context::create_context();
 
-    app::main(&context).await;
+    // app::main(&context).await;
+    discord_bot::main().await;
 }
