@@ -88,7 +88,7 @@ fn capture_game_window(window_id: u32) -> Result<(), String> {
         })
 }
 
-fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<String, String> {
+fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<(String, String), String> {
     let tess_data = if with_data { Some(TESS_DATA) } else { None };
 
     let mut lt = LepTess::new(tess_data, "eng").expect("tesseract init failed");
@@ -125,15 +125,21 @@ fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<Stri
         captured_text_vec.push(text);
     }
 
-    Ok(captured_text_vec.join(" "))
+    let num_rect =
+        ScreenRect::new(1504, 1601, 267, 48);
+
+    lt.set_rectangle(num_rect.x, num_rect.y, num_rect.width, num_rect.height);
+    let pic_number_text = lt.get_utf8_text().expect("get text failed");
+
+    Ok((captured_text_vec.join(" "), pic_number_text))
 }
 
-pub fn capture_raw_text_on_screen() -> String {
+pub fn capture_raw_text_on_screen() -> Result<(String, String), String> {
     let screenshot_path = get_eternal_screen_path().unwrap();
 
     match get_game_window_id() {
         None => {
-            println!("game window not found");
+            return Err("game window not found".to_string());
         }
         Some(window_id) => {
             println!("found game window id: {}", window_id);
@@ -144,13 +150,5 @@ pub fn capture_raw_text_on_screen() -> String {
     let process_screenshot_path = get_eternal_screen_processed_path().unwrap();
     process_image(&screenshot_path, &process_screenshot_path).unwrap();
 
-    match capture_raw_text_from_image(&process_screenshot_path, false) {
-        Ok(text) => {
-            dbg!(text)
-        }
-        Err(err) => {
-            println!("capture text failed: {}", err);
-            "".to_string()
-        }
-    }
+    capture_raw_text_from_image(&process_screenshot_path, false)
 }
