@@ -6,7 +6,7 @@ use std::{
     time,
 };
 
-use crate::context::*;
+use crate::app_context::*;
 use crate::models::draft_data::{DraftPick, DraftRecord};
 use crate::models::draft_game::DraftGame;
 
@@ -23,7 +23,7 @@ const GAME_ID_ALPHABET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV
 const GAME_ID_LENGTH: usize = 8;
 const CURRENT_GAME_ID_KEY: &str = "current_game_id";
 
-pub async fn main(context: &Context) {
+pub async fn main(context: &AppContext) {
     let mut game_id = context.read_data(CURRENT_GAME_ID_KEY).unwrap_or_default();
 
     if game_id.is_empty() {
@@ -55,7 +55,7 @@ pub async fn main(context: &Context) {
     db_access::upsert_draft_record(&vec![current_draft_record]).await.unwrap();
 }
 
-fn create_new_game(context: &Context) -> String {
+fn create_new_game(context: &AppContext) -> String {
     let game_id = nanoid::nanoid!(
         GAME_ID_LENGTH,
         &GAME_ID_ALPHABET.to_string().chars().collect::<Vec<char>>()
@@ -71,8 +71,8 @@ pub async fn upload_card_rating() {
     db_access::insert_card_rating(&card_ratings).await.unwrap();
 }
 
-pub fn get_rating_card_onscreen(card_names: &[String]) -> Vec<String> {
-    let cards_on_screen = screen::capture_cards_on_screen();
+pub fn get_rating_card_onscreen(card_names: &[&str]) -> Vec<String> {
+    let cards_on_screen = screen::capture_raw_text_on_screen();
     card_matcher::find_matches(&cards_on_screen, card_names)
 }
 
@@ -85,12 +85,14 @@ pub fn get_draft_selection_text() -> (Vec<Card>, String) {
     });
 
     let card_ratings = card_loader::load_card_rating();
-    let draft_card_names = card_ratings.keys().cloned().collect::<Vec<String>>();
+    let draft_card_names = card_ratings.keys().map(|c| c.as_str()).collect::<Vec<&str>>();
 
     let matched_card_names = get_rating_card_onscreen(&draft_card_names);
-    let matched_cards = cards
-        .into_iter()
-        .filter(|card| matched_card_names.contains(&card.name))
+    let matched_cards = matched_card_names
+        .iter()
+        .filter_map(|name| card_map.get(name))
+        .cloned()
+        .cloned()
         .collect::<Vec<Card>>();
 
     // matched_cards.sort_unstable_by(|a, b| match a.rarity.cmp(&b.rarity) {
@@ -101,10 +103,10 @@ pub fn get_draft_selection_text() -> (Vec<Card>, String) {
     let mut draft_selection_text = String::new();
     for card in matched_cards.iter() {
         let card_text = format!(
-            "[{}] {:30}: {}",
+            "[{}] [{:<2}] {:30}",
             card.rarity,
+            card_ratings.get(&card.name).unwrap(),
             card.name,
-            card_ratings.get(&card.name).unwrap()
         ) + &"\n";
         draft_selection_text.push_str(&card_text);
     }
@@ -116,7 +118,7 @@ pub fn capture_draft_record(game_id: &str) -> DraftRecord {
     println!("Capturing draft record...");
     let (cards, draft_selection_text) = get_draft_selection_text();
     println!("Found {} cards on screen.", cards.len());
-    println!("Draft selection text: {}", draft_selection_text);
+    println!("Draft selection text:\n{}", draft_selection_text);
 
     // TODO: OCR the draft pick and set here
     let mut draft_record = DraftRecord::new(game_id.to_string(), DraftPick::new(4));

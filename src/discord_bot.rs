@@ -13,6 +13,7 @@ use serenity::{
 };
 
 use crate::{app, db_access};
+use crate::app_context::AppContext;
 use crate::models::draft_data::*;
 use crate::models::card::*;
 
@@ -46,6 +47,11 @@ impl TypeMapKey for BotCardData {
 struct BotCache;
 impl TypeMapKey for BotCache {
     type Value = Arc<RwLock<HashMap<String, String>>>;
+}
+
+struct BotAppContext;
+impl TypeMapKey for BotAppContext {
+    type Value = Arc<AppContext>;
 }
 
 async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
@@ -209,7 +215,7 @@ impl EventHandler for BotHandler {
     }
 }
 
-pub async fn main() {
+pub async fn main(context: &AppContext) {
     let token = env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN in the environment");
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES

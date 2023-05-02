@@ -10,11 +10,11 @@ use core_foundation::{
 use core_graphics::window::{
     copy_window_info, kCGNullWindowID, kCGWindowListOptionAll, kCGWindowNumber, kCGWindowOwnerName,
 };
-use leptess::LepTess;
 use image::io::Reader as ImageReader;
 use image::DynamicImage;
+use leptess::LepTess;
 
-use std::{fs, process::Command, path::PathBuf};
+use std::{fs, path::PathBuf, process::Command};
 
 const RUNTIME_PATH: &str = "./";
 const ETERNAL_WINDOW_NAME: &str = "Eternal Card Game";
@@ -25,14 +25,20 @@ const TESS_DATA: &str = "./resource/tessdata";
 fn get_eternal_screen_path() -> Result<String, String> {
     fs::create_dir_all(RUNTIME_PATH).map_err(|err| err.to_string())?;
 
-    let path = PathBuf::from(RUNTIME_PATH).join(ETERNAL_SCREEN_FILE_NAME).to_string_lossy().to_string();
+    let path = PathBuf::from(RUNTIME_PATH)
+        .join(ETERNAL_SCREEN_FILE_NAME)
+        .to_string_lossy()
+        .to_string();
     Ok(path)
 }
 
 fn get_eternal_screen_processed_path() -> Result<String, String> {
     fs::create_dir_all(RUNTIME_PATH).map_err(|err| err.to_string())?;
 
-    let path = PathBuf::from(RUNTIME_PATH).join(ETERNAL_SCREEN_PROCESSED_FILE_NAME).to_string_lossy().to_string();
+    let path = PathBuf::from(RUNTIME_PATH)
+        .join(ETERNAL_SCREEN_PROCESSED_FILE_NAME)
+        .to_string_lossy()
+        .to_string();
     Ok(path)
 }
 
@@ -82,16 +88,13 @@ fn capture_game_window(window_id: u32) -> Result<(), String> {
         })
 }
 
-fn capture_text_from_image(
-    image_path: &str,
-    with_data: bool
-) -> Result<Vec<String>, String> {
+fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<String, String> {
     let tess_data = if with_data { Some(TESS_DATA) } else { None };
 
     let mut lt = LepTess::new(tess_data, "eng").expect("tesseract init failed");
     lt.set_image(image_path).expect("set image failed");
 
-    let mut captured_text = Vec::new();
+    let mut captured_text_vec = Vec::new();
     let (screen_width, screen_height) = lt.get_image_dimensions().unwrap();
 
     dbg!((screen_width, screen_height));
@@ -119,25 +122,13 @@ fn capture_text_from_image(
     for rect in rectangles {
         lt.set_rectangle(rect.x, rect.y, rect.width, rect.height);
         let text = lt.get_utf8_text().expect("get text failed");
-        captured_text.push(text);
+        captured_text_vec.push(text);
     }
 
-    Ok(captured_text)
+    Ok(captured_text_vec.join(" "))
 }
 
-fn process_text(text_data: Vec<String>) -> String {
-    text_data.iter().fold(
-        String::new(),
-        |acc, text| { 
-            let text = text.replace(|c: char| 
-                !c.is_alphabetic(),
-                "",
-            ).to_lowercase();
-            acc + &text
-        })
-}
-
-pub fn capture_cards_on_screen() -> String {
+pub fn capture_raw_text_on_screen() -> String {
     let screenshot_path = get_eternal_screen_path().unwrap();
 
     match get_game_window_id() {
@@ -153,10 +144,9 @@ pub fn capture_cards_on_screen() -> String {
     let process_screenshot_path = get_eternal_screen_processed_path().unwrap();
     process_image(&screenshot_path, &process_screenshot_path).unwrap();
 
-    match capture_text_from_image(&process_screenshot_path, false) {
+    match capture_raw_text_from_image(&process_screenshot_path, false) {
         Ok(text) => {
-            dbg!(&text);
-            dbg!(process_text(text))
+            dbg!(text)
         }
         Err(err) => {
             println!("capture text failed: {}", err);

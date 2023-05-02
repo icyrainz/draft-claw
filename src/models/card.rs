@@ -110,12 +110,12 @@ pub enum CardRarity {
 impl Display for CardRarity {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match *self {
-            CardRarity::Legendary => write!(f, "{:^10}", "Legendary"),
-            CardRarity::Rare => write!(f, "{:^10}", "Rare"),
-            CardRarity::Uncommon => write!(f, "{:^10}", "Uncommon"),
-            CardRarity::Common => write!(f, "{:^10}", "Common"),
-            CardRarity::Promo => write!(f, "{:^10}", "Promo"),
-            CardRarity::None => write!(f, "{:^10}", "None"),
+            CardRarity::Legendary => write!(f, "{:^12}", "Legendary"),
+            CardRarity::Rare => write!(f, "{:^12}", "Rare"),
+            CardRarity::Uncommon => write!(f, "{:^12}", "Uncommon"),
+            CardRarity::Common => write!(f, "{:^12}", "Common"),
+            CardRarity::Promo => write!(f, "{:^12}", "Promo"),
+            CardRarity::None => write!(f, "{:^12}", "None"),
         }
     }
 }

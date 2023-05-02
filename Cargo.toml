@@ -19,8 +19,9 @@ tokio = { version = "1.28.0", features = ["macros", "signal"] }
 dotenv = "0.15.0"
 strsim = "0.10.0"
 serenity = { version = "0.11.5", default_features = false, features = ["rustls_backend", "client", "gateway", "model"] }
-clap = "4.2.5"
+clap = { version = "4.2.5", features = ["cargo"] }
 shlex = "1.1.0"
 tempfile = "3.5.0"
 directories = "5.0.1"
 nanoid = "0.4.0"
+regex = "1.8.1"
