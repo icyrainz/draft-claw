@@ -754,6 +754,7 @@ dependencies = [
  "dotenv",
  "image",
  "imageproc",
+ "indicium",
  "leptess",
  "nanoid",
  "opencv",
@@ -1357,6 +1358,16 @@ dependencies = [
  "autocfg",
  "hashbrown",
  "serde",
+]
+
+[[package]]
+name = "indicium"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ae94d7617a39d80701145d58094484a171a628adca4064e51078b11db790ee2"
+dependencies = [
+ "strsim",
+ "tracing",
 ]
 
 [[package]]

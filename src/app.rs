@@ -123,6 +123,10 @@ pub fn capture_draft_record(game_id: &str) -> Result<DraftRecord, String> {
     println!("Pick number: {}", pick_number);
     println!("Draft selection text:\n{}", draft_selection_text);
 
+    if draft_selection_text.is_empty() {
+        return Err(format!("Unable to capture draft record for pick {}", pick_number));
+    }
+
     let mut draft_record = DraftRecord::new(game_id.to_string(), DraftPick::new(pick_number));
     draft_record.set_selection_text(draft_selection_text);
     Ok(draft_record)

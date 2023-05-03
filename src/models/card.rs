@@ -1,5 +1,6 @@
 use std::{fmt::{Display, Formatter, self}, collections::HashMap};
 
+use indicium::simple::Indexable;
 use serde::{de, Deserialize, Deserializer};
 use serde_json;
 
@@ -142,4 +143,13 @@ pub struct Card {
 
 fn no_card_text() -> String {
     String::from("No card text")
+}
+
+impl Indexable for Card {
+    fn strings(&self) -> Vec<String> {
+        vec![
+            self.name.clone(),
+            self.set_name.clone(),
+        ]
+    }
 }

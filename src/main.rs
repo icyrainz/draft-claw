@@ -29,7 +29,7 @@ async fn main() {
 
     let context = app_context::create_context();
 
-    app::main(&context).await
+    mode(&context).await
 }
 
 async fn mode(context: &AppContext) {

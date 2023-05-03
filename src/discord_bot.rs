@@ -2,6 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::{collections::HashMap, env, sync::Arc, thread};
 
+use indicium::simple::SearchIndex;
 use tokio::runtime::Handle;
 use tokio::{sync::Mutex, task::JoinHandle};
 
@@ -12,10 +13,10 @@ use serenity::{
     prelude::*,
 };
 
-use crate::{app, db_access};
 use crate::app_context::AppContext;
-use crate::models::draft_data::*;
 use crate::models::card::*;
+use crate::models::draft_data::*;
+use crate::{app, db_access};
 
 const DRAFT_COMMAND: &str = "!draft";
 const CARD_COMMAND: &str = "!card";
@@ -44,6 +45,11 @@ impl TypeMapKey for BotCardData {
     type Value = Arc<HashMap<String, Card>>;
 }
 
+struct BotCardIndex;
+impl TypeMapKey for BotCardIndex {
+    type Value = Arc<SearchIndex<String>>;
+}
+
 struct BotCache;
 impl TypeMapKey for BotCache {
     type Value = Arc<RwLock<HashMap<String, String>>>;
@@ -55,32 +61,56 @@ impl TypeMapKey for BotAppContext {
 }
 
 async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
-//     let draft_data = "[   Rare   ] Evening Hare                  : S-
-// [ Uncommon ] First Watch                   : F
-// [ Uncommon ] Colony Steward                : C-
-// [ Uncommon ] Elite Myrmidon                : A-
-// [  Common  ] Cobalt Acolyte                : C
-// [  Common  ] Midnight Hunter               : C+
-// [  Common  ] Highpeak Rider                : D
-// [  Common  ] Apprentice Ranger             : C+
-// [  Common  ] Daring Leap                   : D-
-// [  Common  ] Twilight Lady                 : C+
-// [  Common  ] Refuse Roller                 : D
-// [  Common  ] Maggot Swarm                  : F+"
-//         .to_string();
+    //     let draft_data = "[   Rare   ] Evening Hare                  : S-
+    // [ Uncommon ] First Watch                   : F
+    // [ Uncommon ] Colony Steward                : C-
+    // [ Uncommon ] Elite Myrmidon                : A-
+    // [  Common  ] Cobalt Acolyte                : C
+    // [  Common  ] Midnight Hunter               : C+
+    // [  Common  ] Highpeak Rider                : D
+    // [  Common  ] Apprentice Ranger             : C+
+    // [  Common  ] Daring Leap                   : D-
+    // [  Common  ] Twilight Lady                 : C+
+    // [  Common  ] Refuse Roller                 : D
+    // [  Common  ] Maggot Swarm                  : F+"
+    //         .to_string();
 
-    let draft_data = 
-        match db_access::get_last_draft_record(game_id).await {
-            Ok(Some(record)) => {
-                record.selection_text
-            }
-            _ => "No data".to_string(),
-        };
+    let draft_data = match db_access::get_last_draft_record(game_id).await {
+        Ok(Some(record)) => record.selection_text,
+        _ => "No data".to_string(),
+    };
 
     draft_data
 }
 
-async fn get_card(ctx: &Context, card_name: &str) -> Option<Card> {
+async fn get_card(ctx: &Context, input_str: &str) -> Result<Card, String> {
+    println!("Searching for card with string: {}", input_str);
+    let card_index = {
+        let data = ctx.data.read().await;
+        data.get::<BotCardIndex>()
+            .expect("Expected CardIndex in TypeMap.")
+            .clone()
+    };
+    let search_result = card_index.search(input_str);
+    let found_card_name: &str;
+    match search_result.len() {
+        1 => {
+            found_card_name = search_result[0];
+        }
+        0 => {
+            return Err("No card found".to_string());
+        }
+        _ => {
+            let found_cards = search_result
+                .iter()
+                .take(3)
+                .map(|s| format!("[{}]", s))
+                .collect::<Vec<String>>()
+                .join(", ");
+            return Err(format!("Multiple cards found: {}", &found_cards));
+        }
+    }
+
     let card_data = {
         let data = ctx.data.read().await;
         data.get::<BotCardData>()
@@ -88,8 +118,8 @@ async fn get_card(ctx: &Context, card_name: &str) -> Option<Card> {
             .clone()
     };
 
-    println!("Getting card {} from data {}", card_name, card_data.len());
-    card_data.get(card_name).cloned()
+    println!("Getting card {} from data {}", found_card_name, card_data.len());
+    Ok(card_data.get(found_card_name).cloned().unwrap())
 }
 
 async fn send_message(ctx: &Context, channel_id: ChannelId, msg: &str) {
@@ -158,7 +188,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             let reply = format!("No game registered to {}", &user.name);
                             send_message(&ctx, channel_id, &reply).await;
 
-                            "nDyQIWGt".to_string()
+                            return;
                         }
                     };
 
@@ -175,16 +205,15 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
 
 async fn process_card_command(ctx: &Context, channel_id: ChannelId, user: User, args: &str) {
     let card_name = args;
-    let found_card = get_card(&ctx, &card_name).await;
-    match found_card {
-        Some(card) => {
-            let reply = format!("{}", card.image_url.to_string());
+    let find_card_result = get_card(&ctx, &card_name).await;
+    match find_card_result {
+        Ok(found_card) => {
+            let reply = format!("{}", found_card.image_url.to_string());
             send_message(&ctx, channel_id, &reply).await;
-        }
-        None => {
-            let reply = format!("Card {} not found", card_name);
-            send_message(&ctx, channel_id, &reply).await;
-        }
+        },
+        Err(e) => {
+            send_message(&ctx, channel_id, &e).await;
+        },
     }
 }
 
@@ -227,8 +256,15 @@ pub async fn main(context: &AppContext) {
         .expect("Err creating client");
     {
         let mut data = client.data.write().await;
-        let card_data = Arc::new(app::load_card_hashmap_by_name());
-        data.insert::<BotCardData>(card_data);
+        let card_data = app::load_card_hashmap_by_name();
+        let mut card_index = SearchIndex::default();
+
+        for (key, value) in card_data.iter() {
+            card_index.insert(key, value);
+        }
+
+        data.insert::<BotCardData>(Arc::new(card_data));
+        data.insert::<BotCardIndex>(Arc::new(card_index));
 
         data.insert::<BotCache>(Arc::new(RwLock::new(HashMap::new())));
     }
