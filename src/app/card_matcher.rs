@@ -1,63 +1,53 @@
+use indicium::simple::SearchIndex;
+
 use crate::app::screen;
 
 use std::collections::{HashMap, HashSet};
 
-fn build_inverse_lookup(tokens: &[&str]) -> HashMap<String, String> {
-    let mut lookup = HashMap::new();
-    for token in tokens {
-        let preprocessed_token = preprocess_text(token);
-        lookup.insert(preprocessed_token, token.to_string());
-    }
-    lookup
-}
-
 fn preprocess_text(text: &str) -> String {
     let cleaned_text: String = text
         .chars()
-        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
-        .map(|c| if c.is_whitespace() { ' ' } else { c })
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace() || *c == ',' || *c == '\'')
         .collect();
     cleaned_text
 }
 
-pub fn find_matches(text: &str, tokens: &[&str]) -> Vec<String> {
-    let lookup = build_inverse_lookup(tokens);
-    let preprocessed_text = preprocess_text(text);
+pub fn find_card_name_matches(card_index: &SearchIndex<String>, texts: &[&str]) -> Vec<String> {
+    texts.iter().filter_map(|text| {
+        let text = preprocess_text(text);
+        let find_result = card_index.search(&text);
 
-    let mut results = Vec::new();
-    let mut match_start_index = 0;
-
-    while match_start_index < preprocessed_text.chars().count() {
-        let found_match = lookup.iter().find(|(preprocessed_token, _)| {
-            let token_len = preprocessed_token.chars().count();
-            
-            if match_start_index + token_len <= preprocessed_text.chars().count() {
-                let window: String = preprocessed_text.chars().skip(match_start_index).take(token_len).collect();
-                window == **preprocessed_token
-            } else {
-                false
-            }
-        });
-
-        if let Some((_, original_token)) = found_match {
-            results.push(original_token.clone());
-            match_start_index += original_token.chars().count();
-        } else {
-            match_start_index += 1;
+        match find_result.len() {
+            1 => {
+                Some(find_result[0].clone())
+            },
+            0 => {
+                println!("No matches found for text: {}", text);
+                None
+            },
+            _ => {
+                println!("Multiple matches found for text: {}", text);
+                None
+            },
         }
-    }
-
-    results
+    }).collect::<Vec<String>>()
 }
+
 
 mod test {
     use super::*;
 
     #[test]
     fn tesc_find_matches() {
-        let ocr_text = "This is a test card a string card b";
-        let card_names = vec!["card b".to_string(), "card a".to_string(), "card c".to_string()];
-        let matches = find_matches(ocr_text, &card_names.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
+        let ocr_text = vec!["card a", "card b"];
+        let card_names = vec!["card b", "card a", "card c"];
+        let mut card_indexes: SearchIndex<String> = SearchIndex::default();
+
+        card_names.iter().for_each(|card_name| {
+            card_indexes.insert(&card_name.to_string(), card_name);
+        });
+
+        let matches = find_card_name_matches(&card_indexes, &ocr_text);
         assert_eq!(matches, vec!["card a".to_string(), "card b".to_string()]);
     }
 }

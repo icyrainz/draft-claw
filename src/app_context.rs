@@ -4,6 +4,7 @@ use std::sync::{RwLock, Arc};
 use std::{collections::HashMap, fs::File, path::Path};
 
 use directories::ProjectDirs;
+use indicium::simple::SearchIndex;
 
 const APP_NAME: &str = "draft-claw";
 const APP_AUTHOR: &str = "akio";

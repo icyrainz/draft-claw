@@ -1,10 +1,14 @@
+use std::borrow::{BorrowMut, Borrow};
 use std::fs::{read, write};
 use std::io::{BufRead, BufReader};
+use std::sync::Arc;
 use std::{
     collections::{HashMap, HashSet},
     fs::File,
     time,
 };
+
+use indicium::simple::SearchIndex;
 
 use crate::app_context::*;
 use crate::models::draft_data::{DraftPick, DraftRecord};
@@ -77,37 +81,66 @@ pub async fn upload_card_rating() {
     db_access::insert_card_rating(&card_ratings).await.unwrap();
 }
 
-pub fn get_draft_selection_text() -> Result<(String, String), String> {
+pub struct RuntimeData {
+    card_map: HashMap<String, Card>,
+    card_index: SearchIndex<String>,
+    card_ratings: HashMap<String, String>,
+}
+
+fn initialize_runtime_data() -> RuntimeData {
     let cards = card_loader::load_card_data();
 
+    let card_index = cards.iter().fold(SearchIndex::default(), |mut acc, card| {
+        acc.insert(&card.name, card);
+        acc
+    });
+
     let card_map = cards.iter().fold(HashMap::new(), |mut acc, card| {
-        acc.insert(card.name.clone(), card);
+        acc.insert(card.name.clone(), card.clone());
         acc
     });
 
     let card_ratings = card_loader::load_card_rating();
     let draft_card_names = card_ratings.keys().map(|c| c.as_str()).collect::<Vec<&str>>();
 
+    RuntimeData {
+        card_map,
+        card_index,
+        card_ratings,
+    }
+}
+
+pub fn get_draft_selection_text(data: &RuntimeData) -> Result<(String, String), String> {
+
     let cards_on_screen = screen::capture_raw_text_on_screen()?;
-    let matched_card_names = card_matcher::find_matches(&cards_on_screen.0, &draft_card_names);
+
+    let card_texts = cards_on_screen.0.iter().map(|card| card.as_str()).collect::<Vec<&str>>();
+    let matched_card_names = card_matcher::find_card_name_matches(&data.card_index, &card_texts);
 
     let pick_numer = cards_on_screen.1.split_whitespace().nth(1).ok_or("unable to parse pick number")?;
 
     let matched_cards = matched_card_names
         .iter()
-        .filter_map(|name| card_map.get(name))
-        .cloned()
+        .filter_map(|name| 
+            data.card_map.get(name))
         .cloned()
         .collect::<Vec<Card>>();
 
+    dbg!(&matched_cards);
     println!("Found {} cards on screen.", matched_cards.len());
 
     let mut draft_selection_text = String::new();
+    draft_selection_text.push_str(format!("Card {} of 48\n", pick_numer).as_str());
     for card in matched_cards.iter() {
+        let rating = match data.card_ratings.get(&card.name) {
+            Some(rating) => rating,
+            None => "NA",
+        };
+
         let card_text = format!(
             "[{}] [{:<2}] {:30}",
             card.rarity,
-            card_ratings.get(&card.name).unwrap(),
+            rating,
             card.name,
         ) + &"\n";
         draft_selection_text.push_str(&card_text);
@@ -118,7 +151,10 @@ pub fn get_draft_selection_text() -> Result<(String, String), String> {
 
 pub fn capture_draft_record(game_id: &str) -> Result<DraftRecord, String> {
     println!("Capturing draft record...");
-    let (pick_number, draft_selection_text) = get_draft_selection_text()?;
+
+    let data = initialize_runtime_data();
+
+    let (pick_number, draft_selection_text) = get_draft_selection_text(&data)?;
     let pick_number = pick_number.parse::<u8>().map_err(|e| "unable to parse pick number".to_string())?;
     println!("Pick number: {}", pick_number);
     println!("Draft selection text:\n{}", draft_selection_text);

@@ -13,6 +13,9 @@ mod db_access;
 mod discord_bot;
 mod models;
 
+#[macro_use]
+extern crate lazy_static;
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const CAPTURE_MODE: &str = "capture";
@@ -32,34 +35,26 @@ async fn main() {
     mode(&context).await
 }
 
+fn get_mode(s: &str) -> Result<String, String> {
+    match s {
+        "" | CAPTURE_MODE => Ok(String::from(CAPTURE_MODE)),
+        BOT_MODE => Ok(String::from(BOT_MODE)),
+        _ => Err("Unknown mode".to_string()),
+    }
+}
+
 async fn mode(context: &AppContext) {
     let matches = command!()
-        .arg(
-            arg!(<MODE>)
-                .help("Choose mode")
-                .value_parser([CAPTURE_MODE, BOT_MODE]),
-        )
+        .arg(arg!(<MODE>).help("Choose mode").value_parser(get_mode))
         .get_matches();
 
-    let mut mode = String::from(DEFAULT_MODE);
-    match matches.get_one::<String>("MODE") {
-        None => {
-            println!("'MODE' is not selected. Defaulting to {}", DEFAULT_MODE);
-        }
-        Some(m) => match m.as_str() {
-            CAPTURE_MODE => mode = String::from(CAPTURE_MODE),
-            BOT_MODE => mode = String::from(BOT_MODE),
+    if let Some(m) = matches.get_one::<String>("MODE") {
+        match m.as_str() {
+            CAPTURE_MODE => app::main(&context).await,
+            BOT_MODE => discord_bot::main(&context).await,
             _ => {
                 panic!("Unknown mode");
             }
-        },
-    }
-
-    match mode.as_str() {
-        CAPTURE_MODE => app::main(&context).await,
-        BOT_MODE => discord_bot::main(&context).await,
-        _ => {
-            panic!("Unknown mode");
         }
     }
 }

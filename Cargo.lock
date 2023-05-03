@@ -755,6 +755,7 @@ dependencies = [
  "image",
  "imageproc",
  "indicium",
+ "lazy_static",
  "leptess",
  "nanoid",
  "opencv",

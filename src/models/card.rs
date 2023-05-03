@@ -1,4 +1,7 @@
-use std::{fmt::{Display, Formatter, self}, collections::HashMap};
+use std::{
+    collections::HashMap,
+    fmt::{self, Display, Formatter},
+};
 
 use indicium::simple::Indexable;
 use serde::{de, Deserialize, Deserializer};
@@ -147,9 +150,6 @@ fn no_card_text() -> String {
 
 impl Indexable for Card {
     fn strings(&self) -> Vec<String> {
-        vec![
-            self.name.clone(),
-            self.set_name.clone(),
-        ]
+        vec![self.name.clone()]
     }
 }

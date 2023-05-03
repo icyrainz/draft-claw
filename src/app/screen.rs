@@ -12,6 +12,7 @@ use core_graphics::window::{
 };
 use image::io::Reader as ImageReader;
 use image::DynamicImage;
+use lazy_static::lazy_static;
 use leptess::LepTess;
 
 use std::{fs, path::PathBuf, process::Command};
@@ -88,7 +89,14 @@ fn capture_game_window(window_id: u32) -> Result<(), String> {
         })
 }
 
-fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<(String, String), String> {
+lazy_static! {
+    static ref CARD_POSITIONS: Vec<ScreenRect> =  vec![
+       ScreenRect::new(507, 475, 238, 22),
+    ];
+    static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1504, 1601, 267, 48);
+}
+
+fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<(Vec<String>, String), String> {
     let tess_data = if with_data { Some(TESS_DATA) } else { None };
 
     let mut lt = LepTess::new(tess_data, "eng").expect("tesseract init failed");
@@ -98,43 +106,31 @@ fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<(Str
     let (screen_width, screen_height) = lt.get_image_dimensions().unwrap();
 
     dbg!((screen_width, screen_height));
-    let rectangles = vec![
-        ScreenRect {
-            x: 500,
-            y: 466,
-            width: 1230,
-            height: 41,
-        },
-        ScreenRect {
-            x: 500,
-            y: 941,
-            width: 1230,
-            height: 41,
-        },
-        ScreenRect {
-            x: 500,
-            y: 1400,
-            width: 1230,
-            height: 41,
-        },
-    ];
+    // let rectangles = vec![
+    //     ScreenRect {x: 500, y: 466, width: 1230, height: 41,},
+    //     ScreenRect {x: 500, y: 941, width: 1230, height: 41,},
+    //     ScreenRect {x: 500, y: 1400, width: 1230, height: 41,},
+    // ];
 
-    for rect in rectangles {
+    for rect in CARD_POSITIONS.iter() {
         lt.set_rectangle(rect.x, rect.y, rect.width, rect.height);
         let text = lt.get_utf8_text().expect("get text failed");
         captured_text_vec.push(text);
     }
+    dbg!(&captured_text_vec);
 
-    let num_rect =
-        ScreenRect::new(1504, 1601, 267, 48);
-
-    lt.set_rectangle(num_rect.x, num_rect.y, num_rect.width, num_rect.height);
+    lt.set_rectangle(
+        PICK_NUM_POSITION.x,
+        PICK_NUM_POSITION.y,
+        PICK_NUM_POSITION.width,
+        PICK_NUM_POSITION.height,
+    );
     let pic_number_text = lt.get_utf8_text().expect("get text failed");
 
-    Ok((captured_text_vec.join(" "), pic_number_text))
+    Ok((captured_text_vec, pic_number_text))
 }
 
-pub fn capture_raw_text_on_screen() -> Result<(String, String), String> {
+pub fn capture_raw_text_on_screen() -> Result<(Vec<String>, String), String> {
     let screenshot_path = get_eternal_screen_path().unwrap();
 
     match get_game_window_id() {
