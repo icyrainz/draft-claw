@@ -5,8 +5,6 @@
 use app_context::AppContext;
 use dotenv::dotenv;
 
-use clap::{arg, command};
-
 #[cfg(feature = "capture")]
 mod app;
 
