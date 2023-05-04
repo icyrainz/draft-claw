@@ -167,14 +167,3 @@ pub fn capture_draft_record(game_id: &str) -> Result<DraftRecord, String> {
     draft_record.set_selection_text(draft_selection_text);
     Ok(draft_record)
 }
-
-pub fn load_card_hashmap_by_name() -> HashMap<String, Card> {
-    let cards = card_loader::load_card_data();
-    let mut card_hashmap = HashMap::new();
-
-    for card in cards {
-        card_hashmap.insert(card.name.clone(), card);
-    }
-
-    card_hashmap
-}

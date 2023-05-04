@@ -16,7 +16,7 @@ use serenity::{
 use crate::app_context::AppContext;
 use crate::models::card::*;
 use crate::models::draft_data::*;
-use crate::{app, db_access};
+use crate::db_access;
 
 const DRAFT_COMMAND: &str = "!draft";
 const CARD_COMMAND: &str = "!card";
@@ -242,7 +242,7 @@ pub async fn init_client(context: &AppContext) -> Client {
         .expect("Err creating client");
     {
         let mut data = client.data.write().await;
-        let card_data = app::load_card_hashmap_by_name();
+        let card_data = crate::card_loader::load_card_hashmap_by_name();
         let mut card_index = SearchIndex::default();
 
         for (key, value) in card_data.iter() {

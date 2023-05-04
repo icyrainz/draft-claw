@@ -7,11 +7,14 @@ use dotenv::dotenv;
 
 use clap::{arg, command};
 
+#[cfg(feature = "capture")]
 mod app;
+
 mod app_context;
 mod db_access;
 mod discord_bot;
 mod models;
+mod card_loader;
 
 #[macro_use]
 extern crate lazy_static;

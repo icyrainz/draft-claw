@@ -552,7 +552,6 @@ dependencies = [
  "anstyle",
  "bitflags",
  "clap_lex",
- "once_cell",
  "strsim",
 ]
 
@@ -860,7 +859,6 @@ name = "draft-claw"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap",
  "core-foundation",
  "core-graphics",
  "directories",

@@ -17,6 +17,17 @@ pub fn load_card_data() -> Vec<Card> {
     cards
 }
 
+pub fn load_card_hashmap_by_name() -> HashMap<String, Card> {
+    let cards = load_card_data();
+    let mut card_hashmap = HashMap::new();
+
+    for card in cards {
+        card_hashmap.insert(card.name.clone(), card);
+    }
+
+    card_hashmap
+}
+
 pub fn load_card_rating() -> HashMap<String, String> {
     let mut card_ratings: HashMap<String, String> = HashMap::new();
 
