@@ -61,20 +61,6 @@ impl TypeMapKey for BotAppContext {
 }
 
 async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
-    //     let draft_data = "[   Rare   ] Evening Hare                  : S-
-    // [ Uncommon ] First Watch                   : F
-    // [ Uncommon ] Colony Steward                : C-
-    // [ Uncommon ] Elite Myrmidon                : A-
-    // [  Common  ] Cobalt Acolyte                : C
-    // [  Common  ] Midnight Hunter               : C+
-    // [  Common  ] Highpeak Rider                : D
-    // [  Common  ] Apprentice Ranger             : C+
-    // [  Common  ] Daring Leap                   : D-
-    // [  Common  ] Twilight Lady                 : C+
-    // [  Common  ] Refuse Roller                 : D
-    // [  Common  ] Maggot Swarm                  : F+"
-    //         .to_string();
-
     let draft_data = match db_access::get_last_draft_record(game_id).await {
         Ok(Some(record)) => record.selection_text,
         _ => "No data".to_string(),
@@ -244,13 +230,13 @@ impl EventHandler for BotHandler {
     }
 }
 
-pub async fn main(context: &AppContext) {
+pub async fn init_client(context: &AppContext) -> Client {
     let token = env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN in the environment");
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
-    let mut client = Client::builder(&token, intents)
+    let client = Client::builder(&token, intents)
         .event_handler(BotHandler)
         .await
         .expect("Err creating client");
@@ -268,6 +254,12 @@ pub async fn main(context: &AppContext) {
 
         data.insert::<BotCache>(Arc::new(RwLock::new(HashMap::new())));
     }
+
+    client
+}
+
+pub async fn main(context: &AppContext) {
+    let mut client = init_client(context).await;
 
     if let Err(why) = client.start().await {
         println!("Client error: {:?}", why);

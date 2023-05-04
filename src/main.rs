@@ -23,6 +23,7 @@ const BOT_MODE: &str = "bot";
 
 const DEFAULT_MODE: &str = CAPTURE_MODE;
 
+#[cfg(feature = "capture")]
 #[tokio::main]
 async fn main() {
     println!("OS type: {}", std::env::consts::OS);
@@ -32,29 +33,21 @@ async fn main() {
 
     let context = app_context::create_context();
 
-    mode(&context).await
-}
-
-fn get_mode(s: &str) -> Result<String, String> {
-    match s {
-        "" | CAPTURE_MODE => Ok(String::from(CAPTURE_MODE)),
-        BOT_MODE => Ok(String::from(BOT_MODE)),
-        _ => Err("Unknown mode".to_string()),
+    println!("1: {}, 2: {}", CAPTURE_MODE, BOT_MODE);
+    let mut buffer = String::new();
+    std::io::stdin().read_line(&mut buffer).unwrap();
+    match buffer.trim() {
+        "" | "1" | CAPTURE_MODE => app::main(&context).await,
+        "2" | BOT_MODE => discord_bot::main(&context).await,
+        _ => panic!("Invalid mode"),
     }
 }
 
-async fn mode(context: &AppContext) {
-    let matches = command!()
-        .arg(arg!(<MODE>).help("Choose mode").value_parser(get_mode))
-        .get_matches();
+#[cfg(feature = "bot")]
+#[shuttle_runtime::main]
+async fn serenity() -> shuttle_serenity::ShuttleSerenity {
+    dotenv().ok();
+    let context = app_context::create_context();
 
-    if let Some(m) = matches.get_one::<String>("MODE") {
-        match m.as_str() {
-            CAPTURE_MODE => app::main(&context).await,
-            BOT_MODE => discord_bot::main(&context).await,
-            _ => {
-                panic!("Unknown mode");
-            }
-        }
-    }
+    Ok(discord_bot::init_client(&context).await.into())
 }

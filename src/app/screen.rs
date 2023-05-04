@@ -92,6 +92,8 @@ fn capture_game_window(window_id: u32) -> Result<(), String> {
 lazy_static! {
     static ref CARD_POSITIONS: Vec<ScreenRect> =  vec![
        ScreenRect::new(507, 475, 238, 22),
+       ScreenRect::new(836, 478, 237, 22),
+       ScreenRect::new(836, 478, 237, 22),
     ];
     static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1504, 1601, 267, 48);
 }
