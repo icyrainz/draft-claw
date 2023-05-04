@@ -17,7 +17,7 @@ serde_json = "1.0.96"
 image = "0.24.6"
 imageproc = "0.23.0"
 opencv = "0.80.0"
-surrealdb = { version = "1.0.0-beta.9", features = ["http", "protocol-http"] }
+surrealdb = { version = "1.0.0-beta.9+20230402", features = ["http", "protocol-http"] }
 tokio = { version = "1.28.0", features = ["macros", "signal"] }
 dotenv = "0.15.0"
 strsim = "0.10.0"
