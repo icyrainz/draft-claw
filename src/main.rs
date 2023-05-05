@@ -8,9 +8,11 @@ use dotenv::dotenv;
 #[cfg(feature = "capture")]
 mod app;
 
+#[cfg(feature = "bot")]
+mod discord_bot;
+
 mod app_context;
 mod db_access;
-mod discord_bot;
 mod models;
 mod card_loader;
 
@@ -24,14 +26,17 @@ const BOT_MODE: &str = "bot";
 
 const DEFAULT_MODE: &str = CAPTURE_MODE;
 
-#[cfg(feature = "capture")]
-#[tokio::main]
-async fn main() {
+fn init() {
     println!("OS type: {}", std::env::consts::OS);
     println!("OS version: {}", std::env::consts::ARCH);
 
     dotenv().ok();
+}
 
+#[cfg(feature = "capture")]
+#[tokio::main]
+async fn main() {
+    init();
     let context = app_context::create_context();
 
     println!("1: {}, 2: {}", CAPTURE_MODE, BOT_MODE);
@@ -45,10 +50,10 @@ async fn main() {
 }
 
 #[cfg(feature = "bot")]
-#[shuttle_runtime::main]
-async fn serenity() -> shuttle_serenity::ShuttleSerenity {
-    dotenv().ok();
+#[tokio::main]
+async fn main() {
+    init();
     let context = app_context::create_context();
 
-    Ok(discord_bot::init_client(&context).await.into())
+    discord_bot::main(&context).await;
 }

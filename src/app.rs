@@ -18,7 +18,6 @@ use super::*;
 use crate::models::card::*;
 use crate::models::card_rating::*;
 
-mod card_loader;
 mod card_matcher;
 mod ocr_engine;
 mod screen;
@@ -134,13 +133,13 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<(String, String), 
     for card in matched_cards.iter() {
         let rating = match data.card_ratings.get(&card.name) {
             Some(rating) => rating,
-            None => "NA",
+            None => "N/A",
         };
 
         let card_text = format!(
             "[{}] [{:<2}] {:30}",
             card.rarity,
-            rating,
+            data.card_ratings.get(&card.name).unwrap(),
             card.name,
         ) + &"\n";
         draft_selection_text.push_str(&card_text);
@@ -166,4 +165,15 @@ pub fn capture_draft_record(game_id: &str) -> Result<DraftRecord, String> {
     let mut draft_record = DraftRecord::new(game_id.to_string(), DraftPick::new(pick_number));
     draft_record.set_selection_text(draft_selection_text);
     Ok(draft_record)
+}
+
+pub fn load_card_hashmap_by_name() -> HashMap<String, Card> {
+    let cards = card_loader::load_card_data();
+    let mut card_hashmap = HashMap::new();
+
+    for card in cards {
+        card_hashmap.insert(card.name.clone(), card);
+    }
+
+    card_hashmap
 }
