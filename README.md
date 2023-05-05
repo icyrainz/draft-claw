@@ -8,6 +8,7 @@ Tesseract trained data provided by - https://github.com/tesseract-ocr/tessdata_b
 
 Eternal JSON data provided by - https://eternalwarcry.com
 
+Set 14 rating provided by Isomorphic
 
 ## Discord bot
   Hosting infra [fly.io](https://fly.io)
