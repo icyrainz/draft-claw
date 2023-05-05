@@ -19,5 +19,8 @@ WORKDIR /app
 # Get compiled binaries from builder's cargo install directory
 COPY --from=builder /usr/src/app/draft-claw /app/draft-claw
 
+# Copy the resource folder from the builder image to the runtime image
+COPY --from=builder /usr/src/app/resource /app/resource
+
 # Run the app
 CMD ./draft-claw

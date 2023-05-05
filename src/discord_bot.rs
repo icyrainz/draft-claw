@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::future::Future;
 use std::pin::Pin;
 use std::{collections::HashMap, env, sync::Arc, thread};
@@ -20,6 +21,10 @@ use crate::db_access;
 
 const DRAFT_COMMAND: &str = "!draft";
 const CARD_COMMAND: &str = "!card";
+
+const CHANNEL_LIST_FILE: &str = "./resource/discord_channels.txt";
+
+const CHANNEL_LIST_KEY: &str = "channel_list";
 
 async fn create_bot() {
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
@@ -58,6 +63,13 @@ impl TypeMapKey for BotCache {
 struct BotAppContext;
 impl TypeMapKey for BotAppContext {
     type Value = Arc<AppContext>;
+}
+
+fn load_channel_list() -> Vec<ChannelId> {
+    let file = std::fs::File::open(CHANNEL_LIST_FILE).expect("Failed to open channel list file");
+    let reader = std::io::BufReader::new(file);
+    let channel_list: Vec<ChannelId> = serde_json::from_reader(reader).expect("Failed to parse channel list file");
+    channel_list
 }
 
 async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
@@ -131,7 +143,7 @@ async fn register_user(ctx: &Context, user: &str, game_id: &str) {
     }
 }
 
-async fn get_user_game(ctx: &Context, user: &str) -> Option<String> {
+async fn get_cached_data(ctx: &Context, cache_key: &str) -> Option<String> {
     let cache_lock = {
         let data = ctx.data.read().await;
         data.get::<BotCache>()
@@ -140,7 +152,7 @@ async fn get_user_game(ctx: &Context, user: &str) -> Option<String> {
     };
 
     let cache = cache_lock.read().await;
-    cache.get(user).cloned()
+    cache.get(cache_key).cloned()
 }
 
 async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User, args: &str) {
@@ -161,7 +173,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                     send_message(&ctx, channel_id, &reply).await;
                 }
                 _ => {
-                    let game_id = get_user_game(&ctx, &user.name).await;
+                    let game_id = get_cached_data(&ctx, &user.name).await;
 
                     let game_id = match game_id {
                         Some(game_id) => {
@@ -212,6 +224,11 @@ impl EventHandler for BotHandler {
         let cmd = cmd_parts.next().ok_or(()).unwrap();
         let args = cmd_parts.next().unwrap_or("");
 
+        let channel_list_str: String = get_cached_data(&ctx, CHANNEL_LIST_KEY).await.unwrap_or_default();
+        if !channel_list_str.split(',').any(|s| s.trim() == &msg.channel_id.to_string()) {
+            return;
+        }
+
         match cmd {
             DRAFT_COMMAND => {
                 process_draft_command(&ctx, msg.channel_id, msg.author, args).await;
@@ -249,10 +266,17 @@ pub async fn init_client(context: &AppContext) -> Client {
             card_index.insert(key, value);
         }
 
+        // Read list of channel from CHANNEL_LIST_FILE
+        let mut file = std::fs::File::open(CHANNEL_LIST_FILE).expect("Unable to open channel list file");
+        let mut contents = String::new();
+        std::io::Read::read_to_string(&mut file, &mut contents).expect("Unable to read channel list file");
+
         data.insert::<BotCardData>(Arc::new(card_data));
         data.insert::<BotCardIndex>(Arc::new(card_index));
 
-        data.insert::<BotCache>(Arc::new(RwLock::new(HashMap::new())));
+        let mut initial_data: HashMap<String, String> = HashMap::new();
+        initial_data.insert(CHANNEL_LIST_KEY.to_string(), contents);
+        data.insert::<BotCache>(Arc::new(RwLock::new(initial_data)));
     }
 
     client
