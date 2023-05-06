@@ -39,14 +39,7 @@ async fn main() {
     init();
     let context = app_context::create_context();
 
-    println!("1: {}, 2: {}", CAPTURE_MODE, BOT_MODE);
-    let mut buffer = String::new();
-    std::io::stdin().read_line(&mut buffer).unwrap();
-    match buffer.trim() {
-        "" | "1" | CAPTURE_MODE => app::main(&context).await,
-        "2" | BOT_MODE => discord_bot::main(&context).await,
-        _ => panic!("Invalid mode"),
-    }
+    app::main(&context).await;
 }
 
 #[cfg(feature = "bot")]

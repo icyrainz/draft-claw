@@ -15,9 +15,9 @@ use serenity::{
 };
 
 use crate::app_context::AppContext;
+use crate::db_access;
 use crate::models::card::*;
 use crate::models::draft_data::*;
-use crate::db_access;
 
 const DRAFT_COMMAND: &str = "!draft";
 const CARD_COMMAND: &str = "!card";
@@ -25,6 +25,10 @@ const CARD_COMMAND: &str = "!card";
 const CHANNEL_LIST_FILE: &str = "./resource/discord_channels.txt";
 
 const CHANNEL_LIST_KEY: &str = "channel_list";
+
+const HELP_TEXT: &str = r#"!draft reg <game_id> - Register a draft (used the id generated from the app)
+!draft - Get the current draft selection
+!draft deck - Get the current deck"#;
 
 async fn create_bot() {
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
@@ -68,13 +72,19 @@ impl TypeMapKey for BotAppContext {
 fn load_channel_list() -> Vec<ChannelId> {
     let file = std::fs::File::open(CHANNEL_LIST_FILE).expect("Failed to open channel list file");
     let reader = std::io::BufReader::new(file);
-    let channel_list: Vec<ChannelId> = serde_json::from_reader(reader).expect("Failed to parse channel list file");
+    let channel_list: Vec<ChannelId> =
+        serde_json::from_reader(reader).expect("Failed to parse channel list file");
     channel_list
 }
 
 async fn get_draft_data(ctx: &Context, game_id: &str) -> String {
     let draft_data = match db_access::get_last_draft_record(game_id).await {
-        Ok(Some(record)) => record.selection_text,
+        Ok(Some(record)) => {
+            format!(
+                "Card {} of 48\n```{}```",
+                record.pick.pick_id, record.selection_text
+            )
+        }
         _ => "No data".to_string(),
     };
 
@@ -116,7 +126,11 @@ async fn get_card(ctx: &Context, input_str: &str) -> Result<Card, String> {
             .clone()
     };
 
-    println!("Getting card {} from data {}", found_card_name, card_data.len());
+    println!(
+        "Getting card {} from data {}",
+        found_card_name,
+        card_data.len()
+    );
     Ok(card_data.get(found_card_name).cloned().unwrap())
 }
 
@@ -143,6 +157,20 @@ async fn register_user(ctx: &Context, user: &str, game_id: &str) {
     }
 }
 
+async fn get_decklist(ctx: &Context, game_id: &str) -> String {
+    let deck_list = match db_access::get_last_draft_record(game_id).await {
+        Ok(Some(record)) => {
+            format!(
+                "```{}```",
+                record.decklist_text.join("\n")
+            )
+        }
+        _ => "No data".to_string(),
+    };
+
+    deck_list
+}
+
 async fn get_cached_data(ctx: &Context, cache_key: &str) -> Option<String> {
     let cache_lock = {
         let data = ctx.data.read().await;
@@ -164,6 +192,9 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
             let args = cmd_parts.next().unwrap_or("");
 
             match sub_cmd {
+                "help" => {
+                    send_message(&ctx, channel_id, HELP_TEXT).await;
+                }
                 "reg" => {
                     let game_id = args;
 
@@ -172,9 +203,8 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                     let reply = format!("Game [{}] is registered to {}", game_id, &user.name);
                     send_message(&ctx, channel_id, &reply).await;
                 }
-                _ => {
+                other => {
                     let game_id = get_cached_data(&ctx, &user.name).await;
-
                     let game_id = match game_id {
                         Some(game_id) => {
                             let reply = format!("Game [{}]", game_id);
@@ -183,15 +213,23 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             game_id
                         }
                         None => {
-                            let reply = format!("No game registered to {}", &user.name);
+                            let reply = format!("No game is registered to {}", &user.name);
                             send_message(&ctx, channel_id, &reply).await;
 
                             return;
                         }
                     };
 
-                    let draft_data = get_draft_data(&ctx, &game_id).await;
-                    send_message(&ctx, channel_id, &draft_data).await;
+                    match other {
+                        "deck" => {
+                            let decklist = get_decklist(&ctx, &game_id).await;
+                            send_message(&ctx, channel_id, &decklist).await;
+                        },
+                        _ => {
+                            let draft_data = get_draft_data(&ctx, &game_id).await;
+                            send_message(&ctx, channel_id, &draft_data).await;
+                        },
+                    }
                 }
             }
         }
@@ -208,10 +246,10 @@ async fn process_card_command(ctx: &Context, channel_id: ChannelId, user: User, 
         Ok(found_card) => {
             let reply = format!("{}", found_card.image_url.to_string());
             send_message(&ctx, channel_id, &reply).await;
-        },
+        }
         Err(e) => {
             send_message(&ctx, channel_id, &e).await;
-        },
+        }
     }
 }
 
@@ -224,8 +262,13 @@ impl EventHandler for BotHandler {
         let cmd = cmd_parts.next().ok_or(()).unwrap();
         let args = cmd_parts.next().unwrap_or("");
 
-        let channel_list_str: String = get_cached_data(&ctx, CHANNEL_LIST_KEY).await.unwrap_or_default();
-        if !channel_list_str.split(',').any(|s| s.trim() == &msg.channel_id.to_string()) {
+        let channel_list_str: String = get_cached_data(&ctx, CHANNEL_LIST_KEY)
+            .await
+            .unwrap_or_default();
+        if !channel_list_str
+            .split(',')
+            .any(|s| s.trim() == &msg.channel_id.to_string())
+        {
             return;
         }
 
@@ -267,9 +310,11 @@ pub async fn init_client(context: &AppContext) -> Client {
         }
 
         // Read list of channel from CHANNEL_LIST_FILE
-        let mut file = std::fs::File::open(CHANNEL_LIST_FILE).expect("Unable to open channel list file");
+        let mut file =
+            std::fs::File::open(CHANNEL_LIST_FILE).expect("Unable to open channel list file");
         let mut contents = String::new();
-        std::io::Read::read_to_string(&mut file, &mut contents).expect("Unable to read channel list file");
+        std::io::Read::read_to_string(&mut file, &mut contents)
+            .expect("Unable to read channel list file");
 
         data.insert::<BotCardData>(Arc::new(card_data));
         data.insert::<BotCardIndex>(Arc::new(card_index));

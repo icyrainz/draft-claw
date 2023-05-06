@@ -22,11 +22,11 @@ pub fn find_card_name_matches(card_index: &SearchIndex<String>, texts: &[&str]) 
                 Some(find_result[0].clone())
             },
             0 => {
-                println!("No matches found for text: {}", text);
+                // println!("No matches found for text: {}", text);
                 None
             },
             _ => {
-                println!("Multiple matches found for text: {}", text);
+                // println!("Multiple matches found for text: {}", text);
                 None
             },
         }

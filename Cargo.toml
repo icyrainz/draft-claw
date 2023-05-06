@@ -4,9 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["bot"]
+default = ["capture", "bot"]
 capture = ["core-graphics", "core-foundation", "leptess", "image", "imageproc", "opencv"]
-bot = []
+bot = ["serenity"]
 
 [dependencies]
 core-graphics = { version = "0.22.3", optional = true }
@@ -21,11 +21,13 @@ surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", tag = "v1.0.0-
 tokio = { version = "1.28.0", features = ["macros", "signal"] }
 dotenv = "0.15.0"
 strsim = "0.10.0"
-serenity = { version = "0.11.5", default_features = false, features = ["rustls_backend", "client", "gateway", "model"] }
+serenity = { version = "0.11.5", optional = true, default_features = false, features = ["rustls_backend", "client", "gateway", "model"] }
 shlex = "1.1.0"
-tempfile = "3.5.0"
 directories = "5.0.1"
 nanoid = "0.4.0"
 regex = "1.8.1"
 indicium = "0.4.3"
 lazy_static = "1.4.0"
+
+[dev-dependencies]
+tempfile = "3.5.0"

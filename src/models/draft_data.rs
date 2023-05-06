@@ -6,10 +6,8 @@ use serde::{Deserialize, Serialize};
 pub struct DraftRecord {
     pub game_id: String,
     pub pick: DraftPick,
-    pub selection_cards: Vec<String>,
-    pub decklist_cards: Vec<String>,
     pub selection_text: String,
-    pub decklist_text: String,
+    pub decklist_text: Vec<String>,
 }
 
 impl DraftRecord {
@@ -17,27 +15,17 @@ impl DraftRecord {
         DraftRecord {
             game_id,
             pick,
-            selection_cards: Vec::new(),
-            decklist_cards: Vec::new(),
             selection_text: String::new(),
-            decklist_text: String::new(),
+            decklist_text: Vec::new(),
         }
     }
 
-    pub fn add_selection_card(&mut self, card_name: String) {
-        self.selection_cards.push(card_name);
+    pub fn set_selection_text(&mut self, text: &str) {
+        self.selection_text = text.to_string();
     }
 
-    pub fn add_decklist_card(&mut self, card_name: String) {
-        self.decklist_cards.push(card_name);
-    }
-
-    pub fn set_selection_text(&mut self, text: String) {
-        self.selection_text = text;
-    }
-
-    pub fn set_decklist_text(&mut self, text: String) {
-        self.decklist_text = text;
+    pub fn set_decklist_text(&mut self, text: &[&str]) {
+        self.decklist_text = text.iter().map(|s| s.to_string()).collect();
     }
 }
 
