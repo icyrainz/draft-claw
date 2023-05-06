@@ -1,26 +1,45 @@
 use std::{
     collections::HashMap,
     fmt::{self, Display, Formatter},
+    str::FromStr,
 };
 
 use indicium::simple::Indexable;
+use itertools::Itertools;
 use serde::{de, Deserialize, Deserializer};
 use serde_json;
 
-#[derive(Debug, Clone, PartialEq)]
+use strum_macros::{Display, EnumString};
+
+#[derive(Debug, Clone, PartialEq, Display, EnumString)]
 pub enum Influence {
+    #[strum(serialize = "F")]
     Fire,
+    #[strum(serialize = "T")]
     Time,
+    #[strum(serialize = "J")]
     Justice,
+    #[strum(serialize = "P")]
     Primal,
+    #[strum(serialize = "S")]
     Shadow,
-    Multi,
+    #[strum(serialize = "x")]
     None,
 }
 
 #[derive(Debug, Clone)]
 pub struct CardInfluence {
     influences: Vec<Influence>,
+}
+
+impl Display for CardInfluence {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        let mut influences_str = String::new();
+        for influence in &self.influences {
+            influences_str.push_str(&format!("{}", influence));
+        }
+        write!(f, "{:<6}", influences_str)
+    }
 }
 
 impl<'de> Deserialize<'de> for CardInfluence {
@@ -31,29 +50,16 @@ impl<'de> Deserialize<'de> for CardInfluence {
         let s = String::deserialize(deserializer)?;
         let influences: Vec<Influence> = s
             .chars()
-            .filter(|c| *c == '{')
-            .zip(s.chars().skip(1))
-            .filter_map(|(open_brace, influence_char)| {
-                if open_brace == '{' {
-                    match influence_char {
-                        'F' => Some(Influence::Fire),
-                        'T' => Some(Influence::Time),
-                        'J' => Some(Influence::Justice),
-                        'P' => Some(Influence::Primal),
-                        'S' => Some(Influence::Shadow),
-                        _ => None,
-                    }
-                } else {
-                    None
-                }
-            })
+            .chunks(3)
+            .into_iter()
+            .filter_map(|chunk| chunk.into_iter().nth(1))
+            .map(|c| Influence::from_str(&c.to_string()).unwrap_or(Influence::None))
             .collect();
-
         Ok(CardInfluence { influences })
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, EnumString)]
 pub enum CardTypeEnum {
     Unit,
     Spell,
@@ -84,15 +90,7 @@ impl<'de> Deserialize<'de> for CardType {
         }
 
         let card_type = if let Some(card_type_str) = tokens.first() {
-            match *card_type_str {
-                "Unit" => CardTypeEnum::Unit,
-                "Spell" => CardTypeEnum::Spell,
-                "Relic" => CardTypeEnum::Relic,
-                "Power" => CardTypeEnum::Power,
-                "Site" => CardTypeEnum::Site,
-                "Curse" => CardTypeEnum::Curse,
-                _ => CardTypeEnum::None,
-            }
+            CardTypeEnum::from_str(card_type_str).unwrap_or(CardTypeEnum::None)
         } else {
             CardTypeEnum::None
         };
@@ -101,47 +99,40 @@ impl<'de> Deserialize<'de> for CardType {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialOrd, Ord, PartialEq, Eq, Display, EnumString)]
 pub enum CardRarity {
+    #[strum(serialize = "L")]
     Legendary,
+    #[strum(serialize = "R")]
     Rare,
+    #[strum(serialize = "U")]
     Uncommon,
+    #[strum(serialize = "C")]
     Common,
+    #[strum(serialize = "P")]
     Promo,
+    #[strum(serialize = "x")]
     None,
-}
-
-impl Display for CardRarity {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match *self {
-            CardRarity::Legendary => write!(f, "{:^12}", "Legendary"),
-            CardRarity::Rare => write!(f, "{:^12}", "Rare"),
-            CardRarity::Uncommon => write!(f, "{:^12}", "Uncommon"),
-            CardRarity::Common => write!(f, "{:^12}", "Common"),
-            CardRarity::Promo => write!(f, "{:^12}", "Promo"),
-            CardRarity::None => write!(f, "{:^12}", "None"),
-        }
-    }
 }
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Card {
-    set_number: u32,
+    pub set_number: u32,
     pub name: String,
     #[serde(default = "no_card_text")]
-    card_text: String,
-    cost: u32,
-    influence: CardInfluence,
-    attack: i32,
-    health: i32,
+    pub card_text: String,
+    pub cost: u32,
+    pub influence: CardInfluence,
+    pub attack: i32,
+    pub health: i32,
     pub rarity: CardRarity,
     #[serde(rename = "Type")]
-    card_type: CardType,
+    pub card_type: CardType,
     pub image_url: String,
-    details_url: String,
-    deck_buildable: bool,
-    set_name: String,
+    pub details_url: String,
+    pub deck_buildable: bool,
+    pub set_name: String,
 }
 
 fn no_card_text() -> String {

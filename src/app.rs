@@ -159,11 +159,13 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
         };
 
         let card_text = format!(
-            "[{}] [{:<2}] {:30}",
-            card.rarity,
+            "[{:<2}] {} {}{:<6} {:30}",
             data.card_ratings
                 .get(&card.name)
                 .unwrap_or(&"NA".to_string()),
+            card.rarity,
+            card.cost,
+            card.influence,
             card.name,
         ) + &"\n";
         draft_selection_text.push_str(&card_text);
@@ -178,13 +180,20 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
             .map(|item| item.0.as_str())
             .collect::<Vec<&str>>(),
     );
-    let matched_deck_names_with_count = matched_deck_names
+
+    let matched_deck_cards = matched_deck_names
+        .iter()
+        .filter_map(|name| data.card_map.get(name))
+        .cloned()
+        .collect::<Vec<Card>>();
+    let matched_deck_cards_with_count = matched_deck_cards
         .iter()
         .zip(screen_data.deck.iter().map(|item| {
             item.1.chars().filter(|c| c.is_digit(10)).collect::<String>()
         }));
-    for card_row in matched_deck_names_with_count {
-        let deck_text = format!("{} x {:30}", card_row.1, card_row.0,);
+    for card_row in matched_deck_cards_with_count {
+        let card_text = format!("{}{} {}", card_row.0.cost, card_row.0.influence, card_row.0.name);
+        let deck_text = format!("{}x {:30}", card_row.1, card_text);
         deck.push(deck_text);
     }
     dbg!(&deck);

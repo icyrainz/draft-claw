@@ -26,7 +26,8 @@ const CHANNEL_LIST_FILE: &str = "./resource/discord_channels.txt";
 
 const CHANNEL_LIST_KEY: &str = "channel_list";
 
-const HELP_TEXT: &str = r#"!draft reg <game_id> - Register a draft (used the id generated from the app)
+const HELP_TEXT: &str = r#"Draft Claw Bot commands:
+!draft reg <game_id> - Register a draft (used the id generated from the app)
 !draft - Get the current draft selection
 !draft deck - Get the current deck"#;
 
