@@ -1,13 +1,11 @@
 use std::{
-    collections::HashMap,
     fmt::{self, Display, Formatter},
     str::FromStr,
 };
 
 use indicium::simple::Indexable;
 use itertools::Itertools;
-use serde::{de, Deserialize, Deserializer};
-use serde_json;
+use serde::{Deserialize, Deserializer};
 
 use strum_macros::{Display, EnumString};
 
@@ -64,6 +62,7 @@ pub enum CardTypeEnum {
     Unit,
     Spell,
     Relic,
+    Weapon,
     Power,
     Site,
     Curse,
@@ -72,7 +71,7 @@ pub enum CardTypeEnum {
 
 #[derive(Debug, Clone)]
 pub struct CardType {
-    card_type: CardTypeEnum,
+    card_type: Vec<CardTypeEnum>,
     is_fast: bool,
 }
 
@@ -82,18 +81,17 @@ impl<'de> Deserialize<'de> for CardType {
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        let mut tokens: Vec<&str> = s.split_whitespace().collect();
+        let tokens: Vec<&str> = s.split_whitespace().collect();
 
         let is_fast = tokens.contains(&"Fast");
-        if is_fast {
-            tokens.retain(|&token| token != "Fast");
-        }
 
-        let card_type = if let Some(card_type_str) = tokens.first() {
-            CardTypeEnum::from_str(card_type_str).unwrap_or(CardTypeEnum::None)
-        } else {
-            CardTypeEnum::None
-        };
+        let card_type = tokens.iter().filter_map(|token| {
+            if token == &"Fast" {
+                None
+            } else {
+                CardTypeEnum::from_str(token).ok()
+            }
+        }).collect();
 
         Ok(CardType { card_type, is_fast })
     }
@@ -137,6 +135,29 @@ pub struct Card {
 
 fn no_card_text() -> String {
     String::from("No card text")
+}
+
+impl Card {
+    pub fn to_text(&self) -> String {
+        let extra = match self.card_type.card_type.last().unwrap_or(&CardTypeEnum::None) {
+            CardTypeEnum::Unit | CardTypeEnum::Weapon => format!("{:>2}/{:>2}", self.attack, self.health),
+            CardTypeEnum::Spell => {
+                if self.card_type.is_fast {
+                    format!("{}", "FSpell")
+                } else {
+                    format!("{}", "Spell")
+                }
+            },
+            CardTypeEnum::Relic => format!("{}", "Relic"),
+            CardTypeEnum::Site => format!("{}", "Site"),
+            CardTypeEnum::Curse => format!("{}", "Curse"),
+            _ => String::new(),
+        };
+        format!(
+            "{} {}{:<6} {:30}{:>7}",
+            self.rarity, self.cost, self.influence, self.name, extra
+        )
+    }
 }
 
 impl Indexable for Card {

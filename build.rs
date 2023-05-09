@@ -3,6 +3,8 @@ use std::fs;
 use std::path::Path;
 
 fn main() {
+    println!("cargo:rustc-link-lib=framework=ApplicationServices");
+
     // Get the target directory
     let target_dir = env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".to_string());
     let profile = env::var("PROFILE").unwrap_or_else(|_| "debug".to_string());

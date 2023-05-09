@@ -1,9 +1,5 @@
 use indicium::simple::SearchIndex;
 
-use crate::app::screen;
-
-use std::collections::{HashMap, HashSet};
-
 fn preprocess_text(text: &str) -> String {
     let cleaned_text: String = text
         .chars()

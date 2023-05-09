@@ -7,7 +7,6 @@ use surrealdb::opt::auth::Root;
 
 use crate::models::draft_game::*;
 use crate::models::draft_data::*;
-use crate::models::card::*;
 use crate::models::card_rating::*;
 
 const DRAFT_RECORD_TABLE: &str = "draft_record";

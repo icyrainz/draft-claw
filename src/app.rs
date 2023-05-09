@@ -1,24 +1,15 @@
-use std::borrow::{Borrow, BorrowMut};
-use std::fs::{read, write};
-use std::io::{BufRead, BufReader};
-use std::sync::Arc;
-use std::{
-    collections::{HashMap, HashSet},
-    fs::File,
-    time,
-};
+use std::{collections::HashMap, time};
 
 use indicium::simple::SearchIndex;
 
 use crate::app_context::*;
 use crate::models::draft_data::{DraftPick, DraftRecord};
-use crate::models::draft_game::DraftGame;
 
 use super::*;
 use crate::models::card::*;
-use crate::models::card_rating::*;
 
 mod card_matcher;
+pub mod input;
 mod ocr_engine;
 mod screen;
 
@@ -65,6 +56,26 @@ pub async fn main(context: &AppContext) {
                 .unwrap();
         } else {
             println!("Unable to capture draft record.");
+        }
+
+        let mut input = String::new();
+
+        println!("Please enter your input and press Enter:");
+        std::io::stdin()
+            .read_line(&mut input)
+            .expect("Failed to read input");
+
+        // Remove the trailing newline character
+        input = input.trim_end_matches('\n').to_string();
+
+        match input.as_str() {
+            other if other.parse::<u8>().is_ok() => {
+                let card_index = input.parse::<u8>().unwrap();
+                screen::select_card(card_index).expect("Unable to select card");
+            }
+            _ => {
+                println!("Continue");
+            }
         }
 
         tokio::time::sleep(time::Duration::from_secs(1)).await;
@@ -140,7 +151,8 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
         .split_whitespace()
         .nth(1)
         .ok_or("unable to capture pick number")?
-        .parse::<u8>().map_err(|err| err.to_string())?;
+        .parse::<u8>()
+        .map_err(|err| err.to_string())?;
 
     let matched_cards = matched_card_names
         .iter()
@@ -159,14 +171,11 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
         };
 
         let card_text = format!(
-            "[{:<2}] {} {}{:<6} {:30}",
+            "[{:<2}] {}",
             data.card_ratings
                 .get(&card.name)
                 .unwrap_or(&"NA".to_string()),
-            card.rarity,
-            card.cost,
-            card.influence,
-            card.name,
+            &card.to_text(),
         ) + &"\n";
         draft_selection_text.push_str(&card_text);
     }
@@ -186,13 +195,20 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
         .filter_map(|name| data.card_map.get(name))
         .cloned()
         .collect::<Vec<Card>>();
-    let matched_deck_cards_with_count = matched_deck_cards
-        .iter()
-        .zip(screen_data.deck.iter().map(|item| {
-            item.1.chars().filter(|c| c.is_digit(10)).collect::<String>()
-        }));
+    let matched_deck_cards_with_count =
+        matched_deck_cards
+            .iter()
+            .zip(screen_data.deck.iter().map(|item| {
+                item.1
+                    .chars()
+                    .filter(|c| c.is_digit(10))
+                    .collect::<String>()
+            }));
     for card_row in matched_deck_cards_with_count {
-        let card_text = format!("{}{} {}", card_row.0.cost, card_row.0.influence, card_row.0.name);
+        let card_text = format!(
+            "{}{} {}",
+            card_row.0.cost, card_row.0.influence, card_row.0.name
+        );
         let deck_text = format!("{}x {:30}", card_row.1, card_text);
         deck.push(deck_text);
     }
@@ -214,7 +230,10 @@ pub fn capture_draft_record(
     let screen_matched_data = get_draft_selection_text(&runtime_data)?;
 
     println!("Pick number: {}", screen_matched_data.pick_num);
-    println!("Draft selection text:\n{}", screen_matched_data.selection_text);
+    println!(
+        "Draft selection text:\n{}",
+        screen_matched_data.selection_text
+    );
 
     if screen_matched_data.selection_text.is_empty() {
         return Err(format!(
@@ -223,9 +242,18 @@ pub fn capture_draft_record(
         ));
     }
 
-    let mut draft_record = DraftRecord::new(game_id.to_string(), DraftPick::new(screen_matched_data.pick_num));
+    let mut draft_record = DraftRecord::new(
+        game_id.to_string(),
+        DraftPick::new(screen_matched_data.pick_num),
+    );
     draft_record.set_selection_text(&screen_matched_data.selection_text);
-    draft_record.set_decklist_text(&screen_matched_data.deck.iter().map(|s| s.as_str()).collect::<Vec<&str>>());
+    draft_record.set_decklist_text(
+        &screen_matched_data
+            .deck
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>(),
+    );
     Ok(draft_record)
 }
 

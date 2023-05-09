@@ -1,7 +1,6 @@
-use super::ocr_engine::*;
+use super::{ocr_engine::*};
 
 use core_foundation::{
-    array::CFArray,
     base::{CFType, TCFType},
     dictionary::{CFDictionary, CFDictionaryRef},
     number::CFNumber,
@@ -10,8 +9,6 @@ use core_foundation::{
 use core_graphics::window::{
     copy_window_info, kCGNullWindowID, kCGWindowListOptionAll, kCGWindowNumber, kCGWindowOwnerName,
 };
-use image::io::Reader as ImageReader;
-use image::DynamicImage;
 use lazy_static::lazy_static;
 use leptess::LepTess;
 
@@ -90,7 +87,7 @@ fn capture_game_window(window_id: u32) -> Result<(), String> {
 }
 
 lazy_static! {
-    static ref CARD_POSITIONS: Vec<ScreenRect> = vec![
+    pub static ref CARD_POSITIONS: Vec<ScreenRect> = vec![
         ScreenRect::new(508, 476, 237, 22),
         ScreenRect::new(838, 476, 237, 22),
         ScreenRect::new(1168, 476, 237, 22),
@@ -104,7 +101,7 @@ lazy_static! {
         ScreenRect::new(1168, 1411, 237, 22),
         ScreenRect::new(1500, 1411, 237, 22),
     ];
-    static ref DECK_POSITIONS: Vec<(ScreenRect, ScreenRect)> = vec![
+    pub static ref DECK_POSITIONS: Vec<(ScreenRect, ScreenRect)> = vec![
         (ScreenRect::new(2194, 462, 269, 60), ScreenRect::new(2507, 469, 30, 50)),
         (ScreenRect::new(2194, 544, 269, 60), ScreenRect::new(2507, 544, 30, 50)),
         (ScreenRect::new(2194, 625, 269, 60), ScreenRect::new(2507, 625, 30, 50)),
@@ -121,7 +118,7 @@ lazy_static! {
         (ScreenRect::new(2194,1521, 269, 60), ScreenRect::new(2507,1521, 30, 50)),
         (ScreenRect::new(2194,1602, 269, 60), ScreenRect::new(2507,1602, 30, 50)),
     ];
-    static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1504, 1601, 267, 48);
+    pub static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1504, 1601, 267, 48);
 }
 
 pub struct ScreenData {
@@ -193,4 +190,13 @@ pub fn capture_raw_text_on_screen() -> Result<ScreenData, String> {
     process_image(&screenshot_path, &process_screenshot_path).unwrap();
 
     capture_raw_text_from_image(&process_screenshot_path, true)
+}
+
+pub fn select_card(card_index: u8) -> Result<(), String> {
+    let window_id = get_game_window_id().ok_or("game window not found")?;
+
+    let (x, y) = (CARD_POSITIONS[card_index as usize].x, CARD_POSITIONS[card_index as usize].y);
+    super::input::send_mouse_event(window_id, x as f64, y as f64);
+
+    Ok(())
 }
