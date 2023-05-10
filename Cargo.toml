@@ -11,10 +11,6 @@ default = ["capture"]
 capture = ["core-graphics", "core-foundation", "leptess", "image", "imageproc", "opencv"]
 bot = ["serenity"]
 
-[target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
-# Link against the ApplicationServices framework on macOS arm64
-application-services-sys = "0.1.0"
-
 [dependencies]
 accessibility-sys = "0.1.3"
 core-graphics = { version = "0.22.3", optional = true }

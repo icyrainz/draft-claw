@@ -23,7 +23,7 @@ impl DraftRecord {
     }
 
     pub fn set_decklist_text(&mut self, text: &[&str]) {
-        self.decklist_text = text.iter().map(|s| s.to_string()).collect();
+        self.decklist_text = text.iter().map(|s| s.to_string()).collect::<Vec<String>>();
     }
 }
 

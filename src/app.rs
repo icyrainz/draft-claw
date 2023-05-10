@@ -1,3 +1,4 @@
+use std::process::Command;
 use std::{collections::HashMap, time};
 
 use indicium::simple::SearchIndex;
@@ -9,13 +10,14 @@ use super::*;
 use crate::models::card::*;
 
 mod card_matcher;
-pub mod input;
+// pub mod input;
 mod ocr_engine;
 mod screen;
 
 const GAME_ID_ALPHABET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const GAME_ID_LENGTH: usize = 8;
 const CURRENT_GAME_ID_KEY: &str = "current_game_id";
+
 
 pub async fn main(context: &AppContext) {
     let mut game_id = context.read_data(CURRENT_GAME_ID_KEY).unwrap_or_default();
@@ -49,32 +51,38 @@ pub async fn main(context: &AppContext) {
             }
         }
 
-        if let Ok(current_draft_record) = capture_draft_record(&runtime_data, &game_id) {
-            // insert draft record into db
-            db_access::upsert_draft_record(&vec![current_draft_record])
-                .await
-                .unwrap();
-        } else {
-            println!("Unable to capture draft record.");
+        match capture_draft_record(&runtime_data, &game_id) {
+            Ok(record) => {
+                // insert draft record into db
+                db_access::upsert_draft_record(&vec![record])
+                    .await
+                    .unwrap_or_else(|err| {
+                        println!("Unable to insert draft record: {}", err);
+                    });
+            }
+            Err(e) => {
+                println!("Unable to capture draft record: {}", e);
+            }
+        
         }
 
         let mut input = String::new();
 
-        println!("Please enter your input and press Enter:");
+        println!("please enter your input and press enter:");
         std::io::stdin()
             .read_line(&mut input)
-            .expect("Failed to read input");
+            .expect("failed to read input");
 
-        // Remove the trailing newline character
+        // remove the trailing newline character
         input = input.trim_end_matches('\n').to_string();
 
         match input.as_str() {
             other if other.parse::<u8>().is_ok() => {
                 let card_index = input.parse::<u8>().unwrap();
-                screen::select_card(card_index).expect("Unable to select card");
+                screen::select_card(card_index).expect("unable to select card");
             }
             _ => {
-                println!("Continue");
+                println!("continue");
             }
         }
 
@@ -118,10 +126,6 @@ fn initialize_runtime_data() -> RuntimeData {
     });
 
     let card_ratings = card_loader::load_card_rating();
-    let draft_card_names = card_ratings
-        .keys()
-        .map(|c| c.as_str())
-        .collect::<Vec<&str>>();
 
     RuntimeData {
         card_map,
@@ -165,11 +169,6 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
     let mut draft_selection_text = String::new();
     // draft_selection_text.push_str(format!("Card {} of 48\n", pick_numer).as_str());
     for card in matched_cards.iter() {
-        let rating = match data.card_ratings.get(&card.name) {
-            Some(rating) => rating,
-            None => "N/A",
-        };
-
         let card_text = format!(
             "[{:<2}] {}",
             data.card_ratings
@@ -267,3 +266,4 @@ pub fn load_card_hashmap_by_name() -> HashMap<String, Card> {
 
     card_hashmap
 }
+

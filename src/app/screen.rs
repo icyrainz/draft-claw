@@ -1,5 +1,3 @@
-use super::{ocr_engine::*};
-
 use core_foundation::{
     base::{CFType, TCFType},
     dictionary::{CFDictionary, CFDictionaryRef},
@@ -7,18 +5,40 @@ use core_foundation::{
     string::CFString,
 };
 use core_graphics::window::{
-    copy_window_info, kCGNullWindowID, kCGWindowListOptionAll, kCGWindowNumber, kCGWindowOwnerName,
+    copy_window_info, kCGNullWindowID, kCGWindowListOptionAll, kCGWindowName, kCGWindowNumber,
+    kCGWindowOwnerName,
 };
 use lazy_static::lazy_static;
 use leptess::LepTess;
 
-use std::{fs, path::PathBuf, process::Command};
+use std::{fs::{self, File}, path::PathBuf, process::{Command, Stdio}};
 
 const RUNTIME_PATH: &str = "./";
-const ETERNAL_WINDOW_NAME: &str = "Eternal Card Game";
+// const ETERNAL_WINDOW_NAME: &str = "Eternal Card Game";
+const ETERNAL_WINDOW_NAME: &str = "Android Emulator";
 const ETERNAL_SCREEN_FILE_NAME: &str = "game.png";
 const ETERNAL_SCREEN_PROCESSED_FILE_NAME: &str = "game_processed.png";
 const TESS_DATA: &str = "./resource/tessdata";
+
+const ANDROID_ADB_PATH: &str = "/Users/tuephan/Library/Android/sdk/platform-tools/adb";
+
+pub struct ScreenRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+}
+
+impl ScreenRect {
+    pub fn new(x: i32, y: i32, width: i32, height: i32) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+}
 
 fn get_eternal_screen_path() -> Result<String, String> {
     fs::create_dir_all(RUNTIME_PATH).map_err(|err| err.to_string())?;
@@ -40,7 +60,7 @@ fn get_eternal_screen_processed_path() -> Result<String, String> {
     Ok(path)
 }
 
-fn get_game_window_id() -> Option<u32> {
+fn get_game_window_id(game_window_name: &str) -> Option<u32> {
     let game_window = copy_window_info(kCGWindowListOptionAll, kCGNullWindowID)
         .unwrap()
         .get_all_values()
@@ -48,10 +68,9 @@ fn get_game_window_id() -> Option<u32> {
         .map(|&window_info| unsafe {
             let wininfo_hash: CFDictionary<CFString, CFType> =
                 TCFType::wrap_under_get_rule(window_info as CFDictionaryRef);
-
             (
                 wininfo_hash
-                    .get(kCGWindowOwnerName)
+                    .get(kCGWindowName)
                     .downcast::<CFString>()
                     .unwrap()
                     .to_string(),
@@ -63,18 +82,18 @@ fn get_game_window_id() -> Option<u32> {
                     .unwrap(),
             )
         })
-        .find(|(window_name, _)| window_name == ETERNAL_WINDOW_NAME)
+        .find(|(window_name, _)| window_name.contains(game_window_name))
         .map(|(_, window_number)| window_number as u32);
 
     game_window
 }
 
-fn capture_game_window(window_id: u32) -> Result<(), String> {
+fn capture_game_window_screencapture(window_id: u32, output_path: &str) -> Result<(), String> {
     Command::new("screencapture")
         .arg("-l")
         .arg(window_id.to_string())
         .arg("-x")
-        .arg(PathBuf::from(RUNTIME_PATH).join(ETERNAL_SCREEN_FILE_NAME))
+        .arg(output_path)
         .status()
         .map_err(|err| err.to_string())
         .and_then(|status| {
@@ -86,37 +105,40 @@ fn capture_game_window(window_id: u32) -> Result<(), String> {
         })
 }
 
+fn capture_game_window_adb(output_path: &str) -> Result<(), String> {
+    let mut file = File::create(output_path)
+        .map_err(|err| format!("Failed to create output file: {}", err))?;
+
+    let mut child = Command::new(ANDROID_ADB_PATH)
+        .arg("exec-out")
+        .arg("screencap")
+        .arg("-p")
+        .stdout(Stdio::piped())
+        .spawn()
+        .map_err(|err| format!("Capture game window from ADB failure: {}", err))?;
+
+    if let Some(mut stdout) = child.stdout.take() {
+        std::io::copy(&mut stdout, &mut file)
+            .map_err(|err| format!("Failed to write screencap to output file: {}", err))?;
+    }
+
+    let status = child
+        .wait()
+        .map_err(|err| format!("Failed to wait for adb process: {}", err))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err("adb screencap failed".to_string())
+    }
+}
+
 lazy_static! {
     pub static ref CARD_POSITIONS: Vec<ScreenRect> = vec![
-        ScreenRect::new(508, 476, 237, 22),
-        ScreenRect::new(838, 476, 237, 22),
-        ScreenRect::new(1168, 476, 237, 22),
-        ScreenRect::new(1500, 476, 237, 22),
-        ScreenRect::new(508, 944, 237, 22),
-        ScreenRect::new(838, 944, 237, 22),
-        ScreenRect::new(1168, 944, 237, 22),
-        ScreenRect::new(1500, 944, 237, 22),
-        ScreenRect::new(508, 1411, 237, 22),
-        ScreenRect::new(838, 1411, 237, 22),
-        ScreenRect::new(1168, 1411, 237, 22),
-        ScreenRect::new(1500, 1411, 237, 22),
+        // Add 
     ];
     pub static ref DECK_POSITIONS: Vec<(ScreenRect, ScreenRect)> = vec![
-        (ScreenRect::new(2194, 462, 269, 60), ScreenRect::new(2507, 469, 30, 50)),
-        (ScreenRect::new(2194, 544, 269, 60), ScreenRect::new(2507, 544, 30, 50)),
-        (ScreenRect::new(2194, 625, 269, 60), ScreenRect::new(2507, 625, 30, 50)),
-        (ScreenRect::new(2194, 705, 269, 60), ScreenRect::new(2507, 705, 30, 50)),
-        (ScreenRect::new(2194, 788, 269, 60), ScreenRect::new(2507, 788, 30, 50)),
-        (ScreenRect::new(2194, 870, 269, 60), ScreenRect::new(2507, 870, 30, 50)),
-        (ScreenRect::new(2194, 950, 269, 60), ScreenRect::new(2507, 950, 30, 50)),
-        (ScreenRect::new(2194,1032, 269, 60), ScreenRect::new(2507,1032, 30, 50)),
-        (ScreenRect::new(2194,1114, 269, 60), ScreenRect::new(2507,1114, 30, 50)),
-        (ScreenRect::new(2194,1195, 269, 60), ScreenRect::new(2507,1195, 30, 50)),
-        (ScreenRect::new(2194,1277, 269, 60), ScreenRect::new(2507,1277, 30, 50)),
-        (ScreenRect::new(2194,1358, 269, 60), ScreenRect::new(2507,1358, 30, 50)),
-        (ScreenRect::new(2194,1439, 269, 60), ScreenRect::new(2507,1439, 30, 50)),
-        (ScreenRect::new(2194,1521, 269, 60), ScreenRect::new(2507,1521, 30, 50)),
-        (ScreenRect::new(2194,1602, 269, 60), ScreenRect::new(2507,1602, 30, 50)),
+        // Add
     ];
     pub static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1504, 1601, 267, 48);
 }
@@ -127,10 +149,7 @@ pub struct ScreenData {
     pub deck: Vec<(String, String)>,
 }
 
-fn capture_raw_text_from_image(
-    image_path: &str,
-    with_data: bool,
-) -> Result<ScreenData, String> {
+fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<ScreenData, String> {
     let tess_data = if with_data { Some(TESS_DATA) } else { None };
 
     let mut lt = LepTess::new(tess_data, "eng").expect("tesseract init failed");
@@ -174,29 +193,44 @@ fn capture_raw_text_from_image(
 }
 
 pub fn capture_raw_text_on_screen() -> Result<ScreenData, String> {
-    let screenshot_path = get_eternal_screen_path().unwrap();
+    let screenshot_path = get_eternal_screen_path()?;
+    let process_screenshot_path = get_eternal_screen_processed_path()?;
 
-    match get_game_window_id() {
+    match get_game_window_id(ETERNAL_WINDOW_NAME) {
         None => {
             return Err("game window not found".to_string());
         }
         Some(window_id) => {
             println!("found game window id: {}", window_id);
-            capture_game_window(window_id).unwrap();
+            // capture_game_window_screencapture(window_id, &screenshot_path).unwrap();
+            capture_game_window_adb(&screenshot_path)?;
         }
     }
 
-    let process_screenshot_path = get_eternal_screen_processed_path().unwrap();
-    process_image(&screenshot_path, &process_screenshot_path).unwrap();
-
+    super::ocr_engine::process_image(&screenshot_path, &process_screenshot_path)
+        .map_err(|err| err.to_string())?;
     capture_raw_text_from_image(&process_screenshot_path, true)
 }
 
+fn get_card_position(card_index: u8) -> (i32, i32) {
+    (
+        CARD_POSITIONS[card_index as usize].x,
+        CARD_POSITIONS[card_index as usize].y,
+    )
+}
+
 pub fn select_card(card_index: u8) -> Result<(), String> {
-    let window_id = get_game_window_id().ok_or("game window not found")?;
+    let (x, y) = get_card_position(card_index);
 
-    let (x, y) = (CARD_POSITIONS[card_index as usize].x, CARD_POSITIONS[card_index as usize].y);
-    super::input::send_mouse_event(window_id, x as f64, y as f64);
-
-    Ok(())
+    Command::new(ANDROID_ADB_PATH)
+        .arg("shell")
+        .arg("input")
+        .arg("tap")
+        .arg(x.to_string())
+        .arg(y.to_string())
+        .output()
+        .map_err(|err| err.to_string())
+        .map(|out| {
+            dbg!(&out);
+        })
 }
