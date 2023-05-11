@@ -5,6 +5,7 @@ pub struct DraftRecord {
     pub game_id: String,
     pub pick: DraftPick,
     pub selection_text: String,
+    pub selection_vec: Vec<String>,
     pub decklist_text: Vec<String>,
 }
 
@@ -14,8 +15,12 @@ impl DraftRecord {
             game_id,
             pick,
             selection_text: String::new(),
+            selection_vec: Vec::new(),
             decklist_text: Vec::new(),
         }
+    }
+    pub fn set_selection_vec(&mut self, selections: &[&str]) {
+        self.selection_vec = selections.iter().map(|s| s.to_string()).collect::<Vec<String>>();
     }
 
     pub fn set_selection_text(&mut self, text: &str) {

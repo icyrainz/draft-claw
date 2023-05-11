@@ -31,7 +31,7 @@ async fn get_db() -> surrealdb::Result<Surreal<Client>> {
     Ok(db)
 }
 
-pub async fn upsert_draft_record(draft_records: &Vec<DraftRecord>) -> surrealdb::Result<()> {
+pub async fn upsert_draft_record(draft_records: &[&DraftRecord]) -> surrealdb::Result<()> {
     let db = get_db().await?;
 
     for record in draft_records {
@@ -91,20 +91,27 @@ pub async fn get_last_draft_game_by_user(user_id: &str) -> surrealdb::Result<Opt
     result.take(0)
 }
 
-pub async fn insert_draft_game(game_id: &str) -> surrealdb::Result<()> {
+pub async fn insert_draft_game(game_id: &str) -> surrealdb::Result<DraftGame> {
     let db = get_db().await?;
 
-    let draft_game = DraftGame::new(game_id);
-    let query = format!(r#"
-        CREATE {}:{} CONTENT {{
-            'game_id': '{}',
-            'time': time::now(),
-        }}"#,
-        DRAFT_GAME_TABLE,
-        game_id,
-        game_id);
+    let draft_game: Option<DraftGame> = db.select((DRAFT_GAME_TABLE, game_id)).await?;
+    match draft_game {
+        Some(game) => {
+            return Ok(game);
+        }
+        None => {
+            let new_game = DraftGame::new(game_id);
+            let create_game_query = format!(r#"
+                CREATE {}:{} CONTENT {{
+                    'game_id': '{}',
+                    'time': time::now(),
+                }}"#,
+                DRAFT_GAME_TABLE,
+                game_id,
+                game_id);
+            db.query(create_game_query).await?;
 
-    let result = db.query(query).await?;
-
-    Ok(())
+            return Ok(new_game);
+        }
+    }
 }

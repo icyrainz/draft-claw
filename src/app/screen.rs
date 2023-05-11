@@ -135,12 +135,22 @@ fn capture_game_window_adb(output_path: &str) -> Result<(), String> {
 
 lazy_static! {
     pub static ref CARD_POSITIONS: Vec<ScreenRect> = vec![
-        // Add 
+        ScreenRect::new( 438, 367, 239, 23),
+        ScreenRect::new( 769, 367, 239, 23),
+        ScreenRect::new(1100, 367, 239, 23),
+        ScreenRect::new(1430, 367, 239, 23),
+        ScreenRect::new( 438, 836, 239, 23),
+        ScreenRect::new( 769, 836, 239, 23),
+        ScreenRect::new(1100, 836, 239, 23),
+        ScreenRect::new(1430, 836, 239, 23),
+        ScreenRect::new( 438,1303, 239, 23),
+        ScreenRect::new( 769,1303, 239, 23),
+        ScreenRect::new(1100,1303, 239, 23),
+        ScreenRect::new(1430,1303, 239, 23),
     ];
     pub static ref DECK_POSITIONS: Vec<(ScreenRect, ScreenRect)> = vec![
-        // Add
     ];
-    pub static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1504, 1601, 267, 48);
+    pub static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1419, 1495, 277, 43);
 }
 
 pub struct ScreenData {
@@ -175,6 +185,7 @@ fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<Scre
         PICK_NUM_POSITION.height,
     );
     let pic_number_text = lt.get_utf8_text().expect("get text failed");
+    dbg!(&pic_number_text);
 
     for rect in DECK_POSITIONS.iter() {
         lt.set_rectangle(rect.0.x, rect.0.y, rect.0.width, rect.0.height);

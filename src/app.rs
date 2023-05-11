@@ -9,6 +9,8 @@ use crate::models::draft_data::{DraftPick, DraftRecord};
 use super::*;
 use crate::models::card::*;
 
+use terminal_menu::{back_button, button, label, list, menu, numeric, scroll, string, submenu};
+
 mod card_matcher;
 // pub mod input;
 mod ocr_engine;
@@ -18,19 +20,50 @@ const GAME_ID_ALPHABET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV
 const GAME_ID_LENGTH: usize = 8;
 const CURRENT_GAME_ID_KEY: &str = "current_game_id";
 
+const ACTION_SELECT_CARD: &str = "Select";
+
+const LABEL_NEW_GAME: &str = "New Game";
+const LABEL_EXISTING_GAME: &str = "Existing Game";
+
+const LABEL_CONFIRM: &str = "Confirm";
+const LABEL_CANCEL: &str = "Cancel";
 
 pub async fn main(context: &AppContext) {
-    let mut game_id = context.read_data(CURRENT_GAME_ID_KEY).unwrap_or_default();
-
-    if game_id.is_empty() {
-        game_id = create_new_game(context);
-    }
-
-    println!("Game ID: {}", game_id);
-
     let runtime_data = initialize_runtime_data();
 
+    let game_menu = menu(vec![
+        label("----------"),
+        label("Draft Claw"),
+        label("----------"),
+        button(LABEL_NEW_GAME),
+        button(LABEL_EXISTING_GAME),
+        back_button("Exit"),
+    ]);
+
+    let mut game_id = context.read_data(CURRENT_GAME_ID_KEY).unwrap_or_default();
+    terminal_menu::run(&game_menu);
+
     loop {
+        {
+            let menu_selection = terminal_menu::mut_menu(&game_menu);
+            match menu_selection.selected_item_name() {
+                LABEL_NEW_GAME => {
+                    game_id = create_new_game(context);
+                }
+                LABEL_EXISTING_GAME => {
+                    if game_id.is_empty() {
+                        println!("No existing game found!");
+                        continue;
+                    }
+                }
+                _ => {
+                    println!("Exiting...");
+                    break;
+                }
+            }
+        }
+        println!("Game ID: {}", game_id);
+
         match db_access::get_draft_game(&game_id).await {
             // Insert if current game does not exist in the db
             Ok(result) if result.is_none() => {
@@ -51,35 +84,65 @@ pub async fn main(context: &AppContext) {
             }
         }
 
+        let mut card_selections: Vec<String> = Vec::new();
+
         match capture_draft_record(&runtime_data, &game_id) {
             Ok(record) => {
                 // insert draft record into db
-                db_access::upsert_draft_record(&vec![record])
+                db_access::upsert_draft_record(&vec![&record])
                     .await
                     .unwrap_or_else(|err| {
                         println!("Unable to insert draft record: {}", err);
                     });
+
+                card_selections = record.selection_vec.clone();
             }
             Err(e) => {
                 println!("Unable to capture draft record: {}", e);
             }
-        
         }
 
-        let mut input = String::new();
+        let select_card_menu = menu(vec![
+            label("Select Card"),
+            label("----------"),
+            scroll(
+                ACTION_SELECT_CARD,
+                card_selections
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, card)| {
+                        if card.is_empty() {
+                            None
+                        } else {
+                            Some(format!("{}: {}", i + 1, card))
+                        }
+                    })
+                    .collect::<Vec<String>>(),
+            ),
+            button(LABEL_CONFIRM),
+        ]);
+        terminal_menu::run(&select_card_menu);
 
-        println!("please enter your input and press enter:");
-        std::io::stdin()
-            .read_line(&mut input)
-            .expect("failed to read input");
+        let input: String;
+        {
+            let select_card_menu_instance = terminal_menu::mut_menu(&select_card_menu);
 
-        // remove the trailing newline character
-        input = input.trim_end_matches('\n').to_string();
+            if select_card_menu_instance.canceled() {
+                return;
+            }
+            input = select_card_menu_instance
+                .selection_value(ACTION_SELECT_CARD)
+                .split(":")
+                .next()
+                .unwrap_or("invalid")
+                .to_string();
+            dbg!(&input);
+        }
 
         match input.as_str() {
             other if other.parse::<u8>().is_ok() => {
                 let card_index = input.parse::<u8>().unwrap();
-                screen::select_card(card_index).expect("unable to select card");
+                screen::select_card(card_index - 1).expect("unable to select card");
             }
             _ => {
                 println!("continue");
@@ -137,6 +200,7 @@ fn initialize_runtime_data() -> RuntimeData {
 pub struct ScreenMatchedData {
     pub pick_num: u8,
     pub selection_text: String,
+    pub selection_vec: Vec<String>,
     pub deck: Vec<String>,
 }
 
@@ -167,16 +231,19 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
     println!("Found {} cards on screen.", matched_cards.len());
 
     let mut draft_selection_text = String::new();
+    let mut draft_selection_vec = Vec::new();
     // draft_selection_text.push_str(format!("Card {} of 48\n", pick_numer).as_str());
-    for card in matched_cards.iter() {
+    for (idx, card) in matched_cards.iter().enumerate() {
         let card_text = format!(
-            "[{:<2}] {}",
+            "{:<2} [{:<2}] {}",
+            idx + 1,
             data.card_ratings
                 .get(&card.name)
                 .unwrap_or(&"NA".to_string()),
             &card.to_text(),
         ) + &"\n";
         draft_selection_text.push_str(&card_text);
+        draft_selection_vec.push(card.name.to_string());
     }
 
     let mut deck = Vec::new();
@@ -216,6 +283,7 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
     Ok(ScreenMatchedData {
         pick_num: pick_numer,
         selection_text: draft_selection_text,
+        selection_vec: draft_selection_vec,
         deck,
     })
 }
@@ -246,6 +314,13 @@ pub fn capture_draft_record(
         DraftPick::new(screen_matched_data.pick_num),
     );
     draft_record.set_selection_text(&screen_matched_data.selection_text);
+    draft_record.set_selection_vec(
+        &screen_matched_data
+            .selection_vec
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>(),
+    );
     draft_record.set_decklist_text(
         &screen_matched_data
             .deck
@@ -266,4 +341,3 @@ pub fn load_card_hashmap_by_name() -> HashMap<String, Card> {
 
     card_hashmap
 }
-

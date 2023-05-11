@@ -3,9 +3,6 @@ name = "draft-claw"
 version = "0.1.0"
 edition = "2021"
 
-[package.metadata]
-frameworks = ["ApplicationServices"]
-
 [features]
 default = ["capture"]
 capture = ["core-graphics", "core-foundation", "leptess", "image", "imageproc", "opencv"]
@@ -38,6 +35,7 @@ strum_macros = "0.24.1"
 itertools = "0.10.5"
 cargo_metadata = "0.15.4"
 pkg-config = "0.3.27"
+terminal-menu = "2.0.5"
 
 [dev-dependencies]
 tempfile = "3.5.0"
