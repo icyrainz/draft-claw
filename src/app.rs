@@ -1,4 +1,3 @@
-use std::process::Command;
 use std::{collections::HashMap, time};
 
 use indicium::simple::SearchIndex;
@@ -9,10 +8,9 @@ use crate::models::draft_data::{DraftPick, DraftRecord};
 use super::*;
 use crate::models::card::*;
 
-use terminal_menu::{back_button, button, label, list, menu, numeric, scroll, string, submenu};
+use terminal_menu::{back_button, button, label, menu, scroll};
 
 mod card_matcher;
-// pub mod input;
 mod ocr_engine;
 mod screen;
 
@@ -26,18 +24,30 @@ const LABEL_NEW_GAME: &str = "New Game";
 const LABEL_EXISTING_GAME: &str = "Existing Game";
 
 const LABEL_CONFIRM: &str = "Confirm";
-const LABEL_CANCEL: &str = "Cancel";
+const LABEL_EXIT: &str = "Exit";
+
+const LABEL_SELECT_CARD: &str = "Select Card";
+
+const APP_NAME: &str = "Draft Claw";
 
 pub async fn main(context: &AppContext) {
     let runtime_data = initialize_runtime_data();
 
     let game_menu = menu(vec![
-        label("----------"),
-        label("Draft Claw"),
-        label("----------"),
+        label(
+            std::iter::repeat('-')
+                .take(APP_NAME.len())
+                .collect::<String>(),
+        ),
+        label(APP_NAME),
+        label(
+            std::iter::repeat('-')
+                .take(APP_NAME.len())
+                .collect::<String>(),
+        ),
         button(LABEL_NEW_GAME),
         button(LABEL_EXISTING_GAME),
-        back_button("Exit"),
+        back_button(LABEL_EXIT),
     ]);
 
     let mut game_id = context.read_data(CURRENT_GAME_ID_KEY).unwrap_or_default();
@@ -89,7 +99,7 @@ pub async fn main(context: &AppContext) {
         match capture_draft_record(&runtime_data, &game_id) {
             Ok(record) => {
                 // insert draft record into db
-                db_access::upsert_draft_record(&vec![&record])
+                db_access::upsert_draft_record(&record)
                     .await
                     .unwrap_or_else(|err| {
                         println!("Unable to insert draft record: {}", err);
@@ -103,8 +113,12 @@ pub async fn main(context: &AppContext) {
         }
 
         let select_card_menu = menu(vec![
-            label("Select Card"),
-            label("----------"),
+            label(LABEL_SELECT_CARD),
+            label(
+                std::iter::repeat('-')
+                    .take(LABEL_SELECT_CARD.len())
+                    .collect::<String>(),
+            ),
             scroll(
                 ACTION_SELECT_CARD,
                 card_selections

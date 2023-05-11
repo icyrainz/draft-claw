@@ -4,26 +4,21 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-default = ["capture"]
-capture = ["core-graphics", "core-foundation", "leptess", "image", "imageproc", "opencv"]
+default = ["capture", "bot"]
+capture = ["leptess", "image", "opencv"]
 bot = ["serenity"]
 
 [dependencies]
-accessibility-sys = "0.1.3"
-core-graphics = { version = "0.22.3", optional = true }
-core-foundation = { version = "0.9.3", optional = true }
-core-foundation-sys = { version = "0.8.4", optional = true }
 leptess = { version = "0.14.0", optional = true }
 image = { version = "0.24.6", optional = true }
-imageproc = { version = "0.23.0", optional = true }
-opencv = { version = "0.80.0", optional = true }
+opencv = { version = "0.81.2", optional = true }
 serde = { version = "1.0.160", features = ["derive"] }
-serde_json = "1.0.96"
+serenity = { version = "0.11.5", optional = true, default_features = false, features = ["rustls_backend", "client", "gateway", "model"] }
 surrealdb = { git = "https://github.com/surrealdb/surrealdb.git", tag = "v1.0.0-beta.9", features = ["http", "protocol-http"]}
 tokio = { version = "1.28.0", features = ["macros", "signal"] }
+serde_json = "1.0.96"
 dotenv = "0.15.0"
 strsim = "0.10.0"
-serenity = { version = "0.11.5", optional = true, default_features = false, features = ["rustls_backend", "client", "gateway", "model"] }
 shlex = "1.1.0"
 directories = "5.0.1"
 nanoid = "0.4.0"

@@ -2,12 +2,12 @@ use std::env;
 
 use surrealdb::Surreal;
 // use surrealdb::engine::remote::ws::{Wss, Client};
-use surrealdb::engine::remote::http::{Https, Client};
+use surrealdb::engine::remote::http::{Client, Https};
 use surrealdb::opt::auth::Root;
 
-use crate::models::draft_game::*;
-use crate::models::draft_data::*;
 use crate::models::card_rating::*;
+use crate::models::draft_data::*;
+use crate::models::draft_game::*;
 
 const DRAFT_RECORD_TABLE: &str = "draft_record";
 const CARD_RATING_TABLE: &str = "card_rating";
@@ -31,16 +31,14 @@ async fn get_db() -> surrealdb::Result<Surreal<Client>> {
     Ok(db)
 }
 
-pub async fn upsert_draft_record(draft_records: &[&DraftRecord]) -> surrealdb::Result<()> {
+pub async fn upsert_draft_record(draft_record: &DraftRecord) -> surrealdb::Result<()> {
     let db = get_db().await?;
 
-    for record in draft_records {
-        let record_id = format!("{}-{}", record.game_id, record.pick.pick_str);
-        let db_record: DraftRecord = 
-            db.update((DRAFT_RECORD_TABLE, record_id))
-            .content(record)
-            .await?;
-        }
+    let record_id = format!("{}-{}", draft_record.game_id, draft_record.pick.pick_str);
+    let db_record: DraftRecord = db
+        .update((DRAFT_RECORD_TABLE, record_id))
+        .content(draft_record)
+        .await?;
 
     Ok(())
 }
@@ -61,8 +59,8 @@ pub async fn insert_card_rating(card_ratings: &Vec<CardRating>) -> surrealdb::Re
     let db = get_db().await?;
 
     for rating in card_ratings {
-        let db_rating: CardRating = 
-            db.create((CARD_RATING_TABLE, rating.name.to_string()))
+        let db_rating: CardRating = db
+            .create((CARD_RATING_TABLE, rating.name.to_string()))
             .content(rating)
             .await?;
     }
@@ -75,15 +73,14 @@ pub async fn get_draft_game(game_id: &str) -> surrealdb::Result<Option<DraftGame
 
     let draft_game = db.select((DRAFT_GAME_TABLE, game_id)).await?;
     Ok(draft_game)
-} 
+}
 
 pub async fn get_last_draft_game_by_user(user_id: &str) -> surrealdb::Result<Option<DraftGame>> {
     let db = get_db().await?;
 
     let query = format!(
         "SELECT * FROM {} WHERE user_id = '{}' ORDER BY time DESC LIMIT 1",
-        DRAFT_GAME_TABLE,
-        user_id
+        DRAFT_GAME_TABLE, user_id
     );
 
     let mut result = db.query(query).bind(("table", DRAFT_GAME_TABLE)).await?;
@@ -101,14 +98,14 @@ pub async fn insert_draft_game(game_id: &str) -> surrealdb::Result<DraftGame> {
         }
         None => {
             let new_game = DraftGame::new(game_id);
-            let create_game_query = format!(r#"
+            let create_game_query = format!(
+                r#"
                 CREATE {}:{} CONTENT {{
                     'game_id': '{}',
                     'time': time::now(),
                 }}"#,
-                DRAFT_GAME_TABLE,
-                game_id,
-                game_id);
+                DRAFT_GAME_TABLE, game_id, game_id
+            );
             db.query(create_game_query).await?;
 
             return Ok(new_game);

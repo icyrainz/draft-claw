@@ -22,6 +22,8 @@ const DRAFT_COMMAND_HELP: &str = r#"
 !draft reg <game_id> - Register a draft (use the id generated from the app)
 !draft - Get the current draft selection
 !draft deck - Get the current deck
+!draft vote <card_id|card_name> - Vote for a card
+!draft commit - Commit the highest voted card
 "#;
 const CARD_COMMAND: &str = "!card";
 
@@ -169,6 +171,25 @@ async fn get_decklist(ctx: &Context, game_id: &str) -> String {
     deck_list
 }
 
+async fn pick_card(ctx: &Context, game_id: &str, pick_text: &str) -> Result<(), String> {
+    let draft_record = db_access::get_last_draft_record(game_id)
+        .await
+        .map_err(|err| err.to_string())?;
+    match draft_record {
+        Some(draft_record) => {
+            let mut draft_record_with_pick = draft_record.clone();
+            draft_record_with_pick.pick_card(pick_text)?;
+
+            db_access::upsert_draft_record(&draft_record_with_pick)
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+        None => {}
+    }
+
+    Ok(())
+}
+
 async fn get_cached_data(ctx: &Context, cache_key: &str) -> Option<String> {
     let cache_lock = {
         let data = ctx.data.read().await;
@@ -200,6 +221,17 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
 
                     let reply = format!("Game [{}] is registered to {}", game_id, &user.name);
                     send_message(&ctx, channel_id, &reply).await;
+                }
+                "vote" => {
+                    let vote = args;
+
+                    match vote {
+                        any if any.parse::<u8>().is_ok() => {}
+                        _ => {
+                            let reply = format!("Invalid vote: {}", vote);
+                            send_message(&ctx, channel_id, &reply).await;
+                        }
+                    }
                 }
                 other => {
                     let game_id = get_cached_data(&ctx, &user.name).await;
