@@ -23,11 +23,16 @@ pub enum DbgFlg {
     Db,
     #[strum(serialize = "DBG_FLG_BOT")]
     Bot,
+    #[strum(serialize = "DBG_FLG_CAPTURE")]
+    Capture,
 }
 
 lazy_static! {
-    pub static ref DBG_FLG_DEFAULTS: HashMap<DbgFlg, bool> =
-        HashMap::from([(DbgFlg::Db, true), (DbgFlg::Bot, true)]);
+    pub static ref DBG_FLG_DEFAULTS: HashMap<DbgFlg, bool> = HashMap::from([
+        (DbgFlg::Db, true),
+        (DbgFlg::Bot, true),
+        (DbgFlg::Capture, true)
+    ]);
 }
 
 pub trait DebugIf: Debug {

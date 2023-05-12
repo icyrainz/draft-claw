@@ -1,3 +1,5 @@
+use crate::opt::*;
+
 use std::{collections::HashMap, time};
 
 use indicium::simple::SearchIndex;
@@ -29,6 +31,10 @@ const LABEL_EXIT: &str = "Exit";
 const LABEL_SELECT_CARD: &str = "Select Card";
 
 const APP_NAME: &str = "Draft Claw";
+
+fn log(s: String) {
+    log_if(s.as_str(), DbgFlg::Capture);
+}
 
 pub async fn main(context: &AppContext) {
     let runtime_data = initialize_runtime_data();
@@ -62,17 +68,17 @@ pub async fn main(context: &AppContext) {
                 }
                 LABEL_EXISTING_GAME => {
                     if game_id.is_empty() {
-                        println!("No existing game found!");
+                        log("No existing game found!".to_string());
                         continue;
                     }
                 }
                 _ => {
-                    println!("Exiting...");
+                    log("Exiting...".to_string());
                     break;
                 }
             }
         }
-        println!("Game ID: {}", game_id);
+        log(format!("Game ID: {}", game_id));
 
         match db_access::get_draft_game(&game_id).await {
             // Insert if current game does not exist in the db
@@ -80,17 +86,17 @@ pub async fn main(context: &AppContext) {
                 db_access::insert_draft_game(&game_id).await.unwrap();
             }
             Ok(result) => {
-                println!(
+                log(format!(
                     "Game [{}] already exists! It belongs to [{}].",
                     game_id,
                     result
                         .unwrap()
                         .user_id
                         .unwrap_or("unregistered".to_string())
-                );
+                ));
             }
             Err(e) => {
-                println!("Unable to get draft game: {}", e);
+                log(format!("Unable to get draft game: {}", e));
             }
         }
 
@@ -102,13 +108,13 @@ pub async fn main(context: &AppContext) {
                 db_access::upsert_draft_record(&record)
                     .await
                     .unwrap_or_else(|err| {
-                        println!("Unable to insert draft record: {}", err);
+                        log(format!("Unable to insert draft record: {}", err));
                     });
 
                 card_selections = record.selection_vec.clone();
             }
             Err(e) => {
-                println!("Unable to capture draft record: {}", e);
+                log(format!("Unable to capture draft record: {}", e));
             }
         }
 
@@ -159,7 +165,7 @@ pub async fn main(context: &AppContext) {
                 screen::select_card(card_index - 1).expect("unable to select card");
             }
             _ => {
-                println!("continue");
+                log("continue".to_string());
             }
         }
 
@@ -242,7 +248,7 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
         .cloned()
         .collect::<Vec<Card>>();
 
-    println!("Found {} cards on screen.", matched_cards.len());
+    log(format!("Found {} cards on screen.", matched_cards.len()));
 
     let mut draft_selection_text = String::new();
     let mut draft_selection_vec = Vec::new();
@@ -306,15 +312,15 @@ pub fn capture_draft_record(
     runtime_data: &RuntimeData,
     game_id: &str,
 ) -> Result<DraftRecord, String> {
-    println!("Capturing draft record...");
+    log("Capturing draft record...".to_string());
 
     let screen_matched_data = get_draft_selection_text(&runtime_data)?;
 
-    println!("Pick number: {}", screen_matched_data.pick_num);
-    println!(
+    log(format!("Pick number: {}", screen_matched_data.pick_num));
+    log(format!(
         "Draft selection text:\n{}",
-        screen_matched_data.selection_text
-    );
+        screen_matched_data.selection_text,
+    ));
 
     if screen_matched_data.selection_text.is_empty() {
         return Err(format!(

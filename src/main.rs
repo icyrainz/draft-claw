@@ -29,7 +29,7 @@ async fn main() {
     init();
     let context = app_context::create_context();
 
-    app::main(&context).await;
+    capture::main(&context).await;
 }
 
 #[cfg(all(feature = "bot", not(feature = "capture")))]

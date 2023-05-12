@@ -102,18 +102,11 @@ fn load_channel_list() -> Vec<ChannelId> {
     channel_list
 }
 
-async fn get_draft_data(game_id: &str) -> String {
-    let draft_data = match db_access::get_last_draft_record(game_id).await {
-        Ok(Some(record)) => {
-            format!(
-                "Card {} of 48\n```{}```",
-                record.pick.pick_id, record.selection_text
-            )
-        }
-        _ => "No data".to_string(),
-    };
-
-    draft_data
+async fn get_draft_data(game_id: &str) -> Option<(DraftPick, String)> {
+    match db_access::get_last_draft_record(game_id).await {
+        Ok(Some(record)) => Some((record.pick, record.selection_text)),
+        _ => None,
+    }
 }
 
 async fn find_card_in_list(ctx: &Context, list: &[String], input_str: &str) -> Option<u8> {
@@ -240,7 +233,7 @@ async fn own_game(ctx: &Context, user: &str, game_id: &str) -> Result<(), String
 async fn get_decklist(game_id: &str) -> String {
     let deck_list = match db_access::get_last_draft_record(game_id).await {
         Ok(Some(record)) => {
-            format!("```{}```", record.decklist_text.join("\n"))
+            format!("{}", record.decklist_text.join("\n"))
         }
         _ => "No data".to_string(),
     };
@@ -378,10 +371,13 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
 
                     match own_game(ctx, &user.name, game_id).await {
                         Ok(_) => {
-                            reply.add(format!("Game [{}] is now owned by {}", game_id, &user.name));
+                            reply.add(format!(
+                                "Game [{}] is now owned by [{}]",
+                                game_id, &user.name
+                            ));
                         }
                         Err(err) => {
-                            reply.add(format!("Unable to own game: {}", err));
+                            reply.add(format!("Unable to own game: [{}]", err));
                         }
                     }
                 }
@@ -394,7 +390,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             game_id
                         }
                         None => {
-                            reply.add(format!("No game is registered to {}", &user.name));
+                            reply.add(format!("No game is registered to [{}]", &user.name));
 
                             send_message(&ctx, channel_id, &reply.to_string()).await;
                             return;
@@ -408,7 +404,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             match vote_card(&ctx, &game_id, &user.name, vote).await {
                                 Ok((draft_pick, picked_card_str)) => {
                                     reply.add(format!(
-                                        "[{}] voted card for pick [{}]: {}",
+                                        "[{}] voted card for pick [{}]:\n{}",
                                         user.name.to_string(),
                                         draft_pick.to_string(),
                                         picked_card_str,
@@ -426,7 +422,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             Ok(chosen_pick) => match pick_card(&game_id, chosen_pick).await {
                                 Ok((draft_pick, chosen_pick_str)) => {
                                     reply.add(format!(
-                                        "[{}] committed card for pick [{}]: {}",
+                                        "[{}] committed card for pick [{}]:\n{}",
                                         user.name.to_string(),
                                         draft_pick.to_string(),
                                         chosen_pick_str
@@ -434,8 +430,8 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                                 }
                                 Err(err) => {
                                     reply.add(format!("Unable to pick: {}", err));
-                                    send_message(&ctx, channel_id, &reply.to_string()).await;
 
+                                    send_message(&ctx, channel_id, &reply.to_string()).await;
                                     return;
                                 }
                             },
@@ -447,11 +443,19 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             }
                         },
                         DRAFT_DECK_CMD => {
-                            reply.add(get_decklist(&game_id).await);
+                            reply.add_boxed(get_decklist(&game_id).await);
                         }
                         _ => {
                             let draft_data = get_draft_data(&game_id).await;
-                            reply.add(draft_data);
+                            match draft_data {
+                                Some(draft_data_unwrap) => {
+                                    reply.add(format!("Card {} of 48", draft_data_unwrap.0.pick_id));
+                                    reply.add_boxed(draft_data_unwrap.1);
+                                }
+                                None => {
+                                    reply.add(format!("No draft data available"));
+                                }
+                            }
                         }
                     }
                 }

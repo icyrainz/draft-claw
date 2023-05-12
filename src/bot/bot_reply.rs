@@ -13,6 +13,10 @@ impl BotReply {
         self.messages.push(msg);
     }
 
+    pub fn add_boxed(&mut self, msg: String) {
+        self.messages.push(format!("```\n{}\n```", msg));
+    }
+
     pub fn to_string(&self) -> String {
         self.messages.join("\n")
     }
