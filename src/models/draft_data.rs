@@ -25,6 +25,10 @@ impl DraftRecord {
         vec![self.game_id.to_string(), self.pick.pick_id.to_string()]
     }
 
+    pub fn generate_id(game_id: &str, pick: &DraftPick) -> Vec<String> {
+        vec![game_id.to_string(), pick.pick_id.to_string()]
+    }
+
     pub fn set_selection_vec(&mut self, selections: &[&str]) {
         self.selection_vec = selections
             .iter()

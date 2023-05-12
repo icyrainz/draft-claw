@@ -10,8 +10,6 @@ use crate::models::draft_data::{DraftPick, DraftRecord};
 use super::*;
 use crate::models::card::*;
 
-use terminal_menu::{back_button, button, label, menu, scroll};
-
 mod card_matcher;
 mod ocr_engine;
 mod screen;
@@ -20,15 +18,19 @@ const GAME_ID_ALPHABET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUV
 const GAME_ID_LENGTH: usize = 8;
 const CURRENT_GAME_ID_KEY: &str = "current_game_id";
 
-const ACTION_SELECT_CARD: &str = "Select";
+const LABEL_ACTION_SELECT: &str = "Select";
 
 const LABEL_NEW_GAME: &str = "New Game";
 const LABEL_EXISTING_GAME: &str = "Existing Game";
 
-const LABEL_CONFIRM: &str = "Confirm";
+const LABEL_CONFIRM_AUTO: &str = "Confirm Auto";
+const LABEL_CONFIRM_MANUAL: &str = "Confirm Manual";
 const LABEL_EXIT: &str = "Exit";
+const LABEL_CONTINUE: &str = "Continue";
+const LABEL_MATCH: &str = "Match";
 
-const LABEL_SELECT_CARD: &str = "Select Card";
+const LABEL_MENU_SELECT_CARD: &str = "Select Card";
+const LABEL_MENU_ACTION: &str = "Action";
 
 const APP_NAME: &str = "Draft Claw";
 
@@ -39,21 +41,21 @@ fn log(s: String) {
 pub async fn main(context: &AppContext) {
     let runtime_data = initialize_runtime_data();
 
-    let game_menu = menu(vec![
-        label(
+    let game_menu = terminal_menu::menu(vec![
+        terminal_menu::label(
             std::iter::repeat('-')
                 .take(APP_NAME.len())
                 .collect::<String>(),
         ),
-        label(APP_NAME),
-        label(
+        terminal_menu::label(APP_NAME),
+        terminal_menu::label(
             std::iter::repeat('-')
                 .take(APP_NAME.len())
                 .collect::<String>(),
         ),
-        button(LABEL_EXISTING_GAME),
-        button(LABEL_NEW_GAME),
-        back_button(LABEL_EXIT),
+        terminal_menu::button(LABEL_EXISTING_GAME),
+        terminal_menu::button(LABEL_NEW_GAME),
+        terminal_menu::back_button(LABEL_EXIT),
     ]);
 
     let mut game_id = context.read_data(CURRENT_GAME_ID_KEY).unwrap_or_default();
@@ -97,13 +99,60 @@ pub async fn main(context: &AppContext) {
             }
             Err(e) => {
                 log(format!("Unable to get draft game: {}", e));
+                continue;
             }
         }
 
-        let mut card_selections: Vec<String> = Vec::new();
+        // let action_menu = terminal_menu::menu(vec![
+        //     terminal_menu::label(LABEL_MENU_ACTION),
+        //     terminal_menu::label(
+        //         std::iter::repeat('-')
+        //             .take(LABEL_MENU_ACTION.len())
+        //             .collect::<String>(),
+        //     ),
+        //     terminal_menu::button(LABEL_MATCH),
+        //     terminal_menu::button(LABEL_CONTINUE),
+        // ]);
+        // terminal_menu::run(&action_menu);
+        //
+        // let input: String;
+        // {
+        //     let action_menu_instance = terminal_menu::mut_menu(&action_menu);
+        //
+        //     if action_menu_instance.canceled() {
+        //         return;
+        //     }
+        //     match action_menu_instance.selected_item_name() {
+        //         LABEL_CONTINUE => {
+        //             continue;
+        //         }
+        //         LABEL_MATCH | _ => {}
+        //     }
+        // }
+
+        let draft_record: DraftRecord;
 
         match capture_draft_record(&runtime_data, &game_id) {
-            Ok(record) => {
+            Ok(mut record) => {
+                match db_access::get_draft_record(&game_id, &record.pick).await {
+                    Ok(Some(record_in_db)) => {
+                        log(format!(
+                            "Record of {} in game {} exists in db",
+                            record.pick.to_string(),
+                            game_id
+                        ));
+
+                        if record_in_db.selected_card.is_some() {
+                            record.selected_card = record_in_db.selected_card;
+                        }
+
+                        dbg!(&record);
+                    }
+                    _ => {
+                        log(format!("Unable to get existing draft record. Overwriting with new captured data."));
+                    }
+                }
+
                 // insert draft record into db
                 db_access::upsert_draft_record(&record)
                     .await
@@ -111,23 +160,32 @@ pub async fn main(context: &AppContext) {
                         log(format!("Unable to insert draft record: {}", err));
                     });
 
-                card_selections = record.selection_vec.clone();
+                draft_record = record.clone();
             }
             Err(e) => {
                 log(format!("Unable to capture draft record: {}", e));
+                continue;
             }
         }
 
-        let select_card_menu = menu(vec![
-            label(LABEL_SELECT_CARD),
-            label(
+        let auto_selected_card = match draft_record.selected_card {
+            Some(idx) => draft_record.selection_vec[idx as usize].to_owned(),
+            None => "No voted card".to_string(),
+        };
+
+        let select_card_menu = terminal_menu::menu(vec![
+            terminal_menu::label(LABEL_MENU_SELECT_CARD),
+            terminal_menu::label(
                 std::iter::repeat('-')
-                    .take(LABEL_SELECT_CARD.len())
+                    .take(LABEL_MENU_SELECT_CARD.len())
                     .collect::<String>(),
             ),
-            scroll(
-                ACTION_SELECT_CARD,
-                card_selections
+            terminal_menu::label(format!("Commited card: {}", auto_selected_card)),
+            terminal_menu::button(LABEL_CONFIRM_AUTO),
+            terminal_menu::scroll(
+                LABEL_ACTION_SELECT,
+                draft_record
+                    .selection_vec
                     .iter()
                     .enumerate()
                     .filter_map(|(i, card)| {
@@ -139,7 +197,8 @@ pub async fn main(context: &AppContext) {
                     })
                     .collect::<Vec<String>>(),
             ),
-            button(LABEL_CONFIRM),
+            terminal_menu::button(LABEL_CONFIRM_MANUAL),
+            terminal_menu::button(LABEL_CONTINUE),
         ]);
         terminal_menu::run(&select_card_menu);
 
@@ -150,19 +209,36 @@ pub async fn main(context: &AppContext) {
             if select_card_menu_instance.canceled() {
                 return;
             }
-            input = select_card_menu_instance
-                .selection_value(ACTION_SELECT_CARD)
-                .split(":")
-                .next()
-                .unwrap_or("invalid")
-                .to_string();
-            dbg!(&input);
+            match select_card_menu_instance.selected_item_name() {
+                LABEL_CONFIRM_MANUAL => {
+                    input = select_card_menu_instance
+                        .selection_value(LABEL_ACTION_SELECT)
+                        .split(":")
+                        .next()
+                        .unwrap_or("invalid")
+                        .to_string();
+                    log(format!("Manually selected: {}", input));
+                }
+                LABEL_CONFIRM_AUTO => {
+                    input = draft_record
+                        .selected_card
+                        .map_or(String::new(), |item| item.to_string());
+                    log(format!("Auto selected: {}", input));
+                }
+                LABEL_CONTINUE => {
+                    continue;
+                }
+                _ => {
+                    log("Invalid menu option".to_string());
+                    return;
+                }
+            }
         }
 
         match input.as_str() {
             other if other.parse::<u8>().is_ok() => {
-                let card_index = input.parse::<u8>().unwrap();
-                screen::select_card(card_index - 1).expect("unable to select card");
+                let card_index = input.parse::<u8>().unwrap() - 1;
+                screen::select_card(card_index).expect("unable to select card");
             }
             _ => {
                 log("continue".to_string());
@@ -252,7 +328,6 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
 
     let mut draft_selection_text = String::new();
     let mut draft_selection_vec = Vec::new();
-    // draft_selection_text.push_str(format!("Card {} of 48\n", pick_numer).as_str());
     for (idx, card) in matched_cards.iter().enumerate() {
         let card_text = format!(
             "{:<2} [{:<2}] {}",

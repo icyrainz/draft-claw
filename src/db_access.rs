@@ -69,6 +69,16 @@ pub async fn get_last_draft_record(game_id: &str) -> Res<Option<DraftRecord>> {
     Ok(result_item)
 }
 
+pub async fn get_draft_record(game_id: &str, pick: &DraftPick) -> Res<Option<DraftRecord>> {
+    let db = get_db().await?;
+
+    let record: Option<DraftRecord> = db
+        .select((DRAFT_RECORD_TABLE, DraftRecord::generate_id(game_id, pick)))
+        .await.err_to_str()?;
+
+    Ok(record)
+}
+
 pub async fn insert_card_rating(card_ratings: &Vec<CardRating>) -> Res<()> {
     let db = get_db().await?;
 
@@ -172,7 +182,7 @@ pub async fn get_highest_voted_pick(game_id: &str, draft_pick: &DraftPick) -> Re
         "SELECT vote_idx, count() FROM {} WHERE game_id = '{}' AND draft_pick.pick_id = {} GROUP BY vote_idx ORDER BY count DESC LIMIT 1",
         DRAFT_VOTE_TABLE, game_id, draft_pick.pick_id
     );
-    
+
     log(format!("Query: {}", query));
 
     let result: Res<Option<u8>> = db
