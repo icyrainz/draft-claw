@@ -9,22 +9,34 @@ use serenity::{
     prelude::*,
 };
 
-use crate::app_context::AppContext;
-use crate::db_access;
-use crate::models::card::*;
+use crate::models::{card::*, draft_data::DraftPick};
+use crate::{app_context::AppContext, models::draft_game::DraftGame};
+use crate::{
+    db_access::{self, get_last_draft_record},
+    models::draft_game::DraftVote,
+};
 
-const DRAFT_COMMAND: &str = if cfg!(debug_assertions) {
+const DRAFT_CMD: &str = if cfg!(debug_assertions) {
     "!dd"
 } else {
     "!draft"
 };
-const DRAFT_COMMAND_HELP: &str = r#"
-!draft reg <game_id> - Register a draft (use the id generated from the app)
+const DRAFT_CMD_HELP: &str = r#"
 !draft - Get the current draft selection
+!draft reg <game_id> - Register an existing draft
+!draft own <game_id> - Register and own a game
 !draft deck - Get the current deck
 !draft vote <card_id|card_name> - Vote for a card
-!draft commit - Commit the highest voted card
+!draft commit - Commit the highest voted card. Only the owner can perform this.
 "#;
+
+const DRAFT_HELP_CMD: &str = "help";
+const DRAFT_REG_CMD: &str = "reg";
+const DRAFT_OWN_CMD: &str = "own";
+const DRAFT_DECK_CMD: &str = "deck";
+const DRAFT_VOTE_CMD: &str = "vote";
+const DRAFT_COMMIT_CMD: &str = "commit";
+
 const CARD_COMMAND: &str = "!card";
 
 const DRAFT_THREAD_PREFIX: &str = "draft";
@@ -143,7 +155,7 @@ async fn send_message(ctx: &Context, channel_id: ChannelId, msg: &str) {
     }
 }
 
-async fn register_user(ctx: &Context, user: &str, game_id: &str) {
+async fn register_game_in_cache(ctx: &Context, user: &str, game_id: &str) {
     let cache_lock = {
         let data = ctx.data.read().await;
         data.get::<BotCache>()
@@ -160,7 +172,32 @@ async fn register_user(ctx: &Context, user: &str, game_id: &str) {
     }
 }
 
-async fn get_decklist(ctx: &Context, game_id: &str) -> String {
+async fn own_game(ctx: &Context, user: &str, game_id: &str) -> Result<(), String> {
+    register_game_in_cache(ctx, user, game_id).await;
+
+    let mut draft_game: DraftGame;
+    match db_access::get_draft_game(game_id)
+        .await
+        .map_err(|err| err.to_string())?
+    {
+        Some(game) => {
+            draft_game = game;
+        }
+        None => {
+            draft_game = db_access::insert_draft_game(game_id)
+                .await
+                .map_err(|err| err.to_string())?;
+        }
+    }
+    draft_game.user_id = Some(user.to_string());
+    db_access::upsert_draft_game(&draft_game)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    Ok(())
+}
+
+async fn get_decklist(game_id: &str) -> String {
     let deck_list = match db_access::get_last_draft_record(game_id).await {
         Ok(Some(record)) => {
             format!("```{}```", record.decklist_text.join("\n"))
@@ -171,23 +208,100 @@ async fn get_decklist(ctx: &Context, game_id: &str) -> String {
     deck_list
 }
 
-async fn pick_card(ctx: &Context, game_id: &str, pick_text: &str) -> Result<(), String> {
+async fn get_chosen_pick(game_id: &str) -> Result<u8, String> {
+    let draft_record = db_access::get_last_draft_record(game_id)
+        .await
+        .map_err(|err| err.to_string())?
+        .ok_or(format!(
+            "Unable to get last draft record for game {}",
+            game_id
+        ))?;
+
+    let highest_pick = db_access::get_highest_voted_pick(&game_id, &draft_record.pick).await?;
+
+    highest_pick.ok_or(format!(
+        "Unable to get highest voted pick for {} in {}",
+        game_id.to_string(),
+        draft_record.pick.pick_str.to_string()
+    ))
+}
+
+async fn pick_card(game_id: &str, pick_idx: u8) -> Result<(String, String), String> {
     let draft_record = db_access::get_last_draft_record(game_id)
         .await
         .map_err(|err| err.to_string())?;
     match draft_record {
         Some(draft_record) => {
+            if pick_idx as usize >= draft_record.selection_vec.len() {
+                return Err(format!(
+                    "Pick index {} is out of bounds for game {}",
+                    pick_idx, game_id
+                ));
+            }
+
             let mut draft_record_with_pick = draft_record.clone();
-            draft_record_with_pick.pick_card(pick_text)?;
+            draft_record_with_pick.pick_card(pick_idx);
 
             db_access::upsert_draft_record(&draft_record_with_pick)
                 .await
                 .map_err(|err| err.to_string())?;
+
+            return Ok((
+                draft_record_with_pick.pick.pick_str.to_string(),
+                draft_record_with_pick.selection_vec[pick_idx as usize].to_string(),
+            ));
         }
         None => {}
     }
 
-    Ok(())
+    Err(format!("Unable to find draft record for game {}", game_id))
+}
+
+async fn vote_card(
+    game_id: &str,
+    user: &str,
+    vote_text: &str,
+) -> Result<(DraftPick, String), String> {
+    let draft_record = get_last_draft_record(game_id)
+        .await
+        .map_err(|err| err.to_string())?
+        .ok_or("Could not find draft record".to_string())?;
+
+    let vote_idx: u8;
+    if let Ok(pick_num) = vote_text.parse::<u8>() {
+        let pick_num = pick_num - 1;
+        match draft_record.selection_vec.iter().nth((pick_num) as usize) {
+            Some(card_name) => {
+                vote_idx = pick_num;
+            }
+            _ => {
+                return Err(format!("Unable to find card at index {}", pick_num));
+            }
+        }
+    } else {
+        let matched_pick = draft_record
+            .selection_vec
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, card_name)| card_name.contains(vote_text).then_some(idx as u8))
+            .collect::<Vec<u8>>();
+
+        if matched_pick.len() != 1 {
+            vote_idx = *matched_pick.first().unwrap();
+        } else {
+            return Err("Unable to find card to pick".to_string());
+        }
+    }
+
+    let draft_vote = DraftVote::new(game_id, user, &draft_record.pick, vote_idx);
+    db_access::upsert_draft_vote(&draft_vote)
+        .await
+        .map_err(|err| err.to_string())?;
+
+    Ok((
+        draft_record.pick.clone(),
+        draft_record.selection_vec[vote_idx as usize].to_string(),
+    ))
 }
 
 async fn get_cached_data(ctx: &Context, cache_key: &str) -> Option<String> {
@@ -211,24 +325,28 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
             let args = cmd_parts.next().unwrap_or("");
 
             match sub_cmd {
-                "help" => {
+                DRAFT_HELP_CMD => {
                     send_message(&ctx, channel_id, &get_help_text()).await;
                 }
-                "reg" => {
+                DRAFT_REG_CMD => {
                     let game_id = args;
 
-                    register_user(&ctx, &user.name, game_id).await;
+                    register_game_in_cache(&ctx, &user.name, game_id).await;
 
                     let reply = format!("Game [{}] is registered to {}", game_id, &user.name);
                     send_message(&ctx, channel_id, &reply).await;
                 }
-                "vote" => {
-                    let vote = args;
+                DRAFT_OWN_CMD => {
+                    let game_id = args;
 
-                    match vote {
-                        any if any.parse::<u8>().is_ok() => {}
-                        _ => {
-                            let reply = format!("Invalid vote: {}", vote);
+                    match own_game(ctx, &user.name, game_id).await {
+                        Ok(_) => {
+                            let reply =
+                                format!("Game [{}] is now owned by {}", game_id, &user.name);
+                            send_message(&ctx, channel_id, &reply).await;
+                        }
+                        Err(err) => {
+                            let reply = format!("Unable to own game: {}", err);
                             send_message(&ctx, channel_id, &reply).await;
                         }
                     }
@@ -251,13 +369,55 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                     };
 
                     match other {
-                        "deck" => {
-                            let decklist = get_decklist(&ctx, &game_id).await;
+                        DRAFT_VOTE_CMD => {
+                            let vote = args;
+
+                            match vote_card(&game_id, &user.name, vote).await {
+                                Ok((draft_pick, picked_card_str)) => {
+                                    let reply = format!(
+                                        "Card [{}] is picked for {}",
+                                        picked_card_str, draft_pick.pick_str
+                                    );
+                                    send_message(&ctx, channel_id, &reply).await;
+                                }
+                                Err(err) => {
+                                    let reply = format!("Unable to vote with arg: {}", err);
+                                    send_message(&ctx, channel_id, &reply).await;
+
+                                    return;
+                                }
+                            }
+                        }
+                        DRAFT_COMMIT_CMD => match get_chosen_pick(&game_id).await {
+                            Ok(chosen_pick) => match pick_card(&game_id, chosen_pick).await {
+                                Ok((draft_pick_str, chosen_pick_str)) => {
+                                    let reply = format!(
+                                        "Chosen card for pick {} is {}",
+                                        draft_pick_str, chosen_pick_str
+                                    );
+                                }
+                                Err(err) => {
+                                    let reply = format!("Unable to pick: {}", err);
+                                    send_message(&ctx, channel_id, &reply).await;
+                                }
+                            },
+                            Err(err) => {
+                                let reply = format!("Unable to get pick: {}", err);
+                                send_message(&ctx, channel_id, &reply).await;
+                                return;
+                            }
+                        },
+                        DRAFT_DECK_CMD => {
+                            let decklist = get_decklist(&game_id).await;
                             send_message(&ctx, channel_id, &decklist).await;
+
+                            return;
                         }
                         _ => {
                             let draft_data = get_draft_data(&ctx, &game_id).await;
                             send_message(&ctx, channel_id, &draft_data).await;
+
+                            return;
                         }
                     }
                 }
@@ -265,6 +425,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
         }
         None => {
             send_message(&ctx, channel_id, "Unknown command").await;
+            return;
         }
     }
 }
@@ -284,7 +445,7 @@ async fn process_card_command(ctx: &Context, channel_id: ChannelId, user: User, 
 }
 
 fn get_help_text() -> String {
-    format!("```{}```", DRAFT_COMMAND_HELP)
+    format!("```{}```", DRAFT_CMD_HELP)
 }
 
 struct BotHandler;
@@ -319,7 +480,7 @@ impl EventHandler for BotHandler {
         }
 
         match cmd {
-            DRAFT_COMMAND => {
+            DRAFT_CMD => {
                 process_draft_command(&ctx, msg.channel_id, msg.author, args).await;
             }
             CARD_COMMAND => {

@@ -7,7 +7,7 @@ pub struct DraftRecord {
     pub selection_text: String,
     pub selection_vec: Vec<String>,
     pub decklist_text: Vec<String>,
-    pub selected_card: Option<String>,
+    pub selected_card: Option<u8>,
 }
 
 impl DraftRecord {
@@ -36,28 +36,8 @@ impl DraftRecord {
         self.decklist_text = text.iter().map(|s| s.to_string()).collect::<Vec<String>>();
     }
 
-    pub fn pick_card(&mut self, pick_text: &str) -> Result<(), String> {
-        if let Ok(pick_num) = pick_text.parse::<u8>() {
-            match self.selection_vec.iter().nth(pick_num as usize) {
-                Some(card_name) => {
-                    self.selected_card = Some(card_name.to_string());
-                    Ok(())
-                }
-                _ => Err(format!("Unable to find card at index {}", pick_num)),
-            }
-        } else {
-            match self
-                .selection_vec
-                .iter()
-                .find(|card_name| card_name.contains(pick_text))
-            {
-                Some(card_name) => {
-                    self.selected_card = Some(card_name.to_string());
-                    Ok(())
-                }
-                None => Err(format!("Unable to find card matching {}", pick_text)),
-            }
-        }
+    pub fn pick_card(&mut self, selected_card: u8) {
+        self.selected_card = Some(selected_card);
     }
 }
 

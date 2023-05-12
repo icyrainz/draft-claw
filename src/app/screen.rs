@@ -77,25 +77,42 @@ fn capture_game_window_adb(output_path: &str) -> Result<(), String> {
         Err("adb screencap failed".to_string())
     }
 }
+// 2560 x 1600
+// lazy_static! {
+//     pub static ref CARD_POSITIONS: Vec<ScreenRect> = vec![
+//         ScreenRect::new( 438, 367, 239, 23),
+//         ScreenRect::new( 769, 367, 239, 23),
+//         ScreenRect::new(1100, 367, 239, 23),
+//         ScreenRect::new(1430, 367, 239, 23),
+//         ScreenRect::new( 438, 836, 239, 23),
+//         ScreenRect::new( 769, 836, 239, 23),
+//         ScreenRect::new(1100, 836, 239, 23),
+//         ScreenRect::new(1430, 836, 239, 23),
+//         ScreenRect::new( 438,1303, 239, 23),
+//         ScreenRect::new( 769,1303, 239, 23),
+//         ScreenRect::new(1100,1303, 239, 23),
+//         ScreenRect::new(1430,1303, 239, 23),
+//     ];
+//     pub static ref DECK_POSITIONS: Vec<(ScreenRect, ScreenRect)> = vec![
+//     ];
+//     pub static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1419, 1495, 277, 43);
+// }
 
+// 1920 x 1080
 lazy_static! {
     pub static ref CARD_POSITIONS: Vec<ScreenRect> = vec![
-        ScreenRect::new( 438, 367, 239, 23),
-        ScreenRect::new( 769, 367, 239, 23),
-        ScreenRect::new(1100, 367, 239, 23),
-        ScreenRect::new(1430, 367, 239, 23),
-        ScreenRect::new( 438, 836, 239, 23),
-        ScreenRect::new( 769, 836, 239, 23),
-        ScreenRect::new(1100, 836, 239, 23),
-        ScreenRect::new(1430, 836, 239, 23),
-        ScreenRect::new( 438,1303, 239, 23),
-        ScreenRect::new( 769,1303, 239, 23),
-        ScreenRect::new(1100,1303, 239, 23),
-        ScreenRect::new(1430,1303, 239, 23),
+        ScreenRect::new( 393, 250, 160, 14),
+        ScreenRect::new( 615, 250, 160, 14),
+        ScreenRect::new( 839, 250, 160, 14),
+        ScreenRect::new(1062, 250, 160, 14),
+        ScreenRect::new( 393, 565, 160, 14),
+        ScreenRect::new( 615, 565, 160, 14),
+        ScreenRect::new( 839, 565, 160, 14),
+        ScreenRect::new(1062, 565, 160, 14),
     ];
     pub static ref DECK_POSITIONS: Vec<(ScreenRect, ScreenRect)> = vec![
     ];
-    pub static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1419, 1495, 277, 43);
+    pub static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1055, 1008, 185, 31);
 }
 
 pub struct ScreenData {

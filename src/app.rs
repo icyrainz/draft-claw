@@ -45,8 +45,8 @@ pub async fn main(context: &AppContext) {
                 .take(APP_NAME.len())
                 .collect::<String>(),
         ),
-        button(LABEL_NEW_GAME),
         button(LABEL_EXISTING_GAME),
+        button(LABEL_NEW_GAME),
         back_button(LABEL_EXIT),
     ]);
 
