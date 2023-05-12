@@ -5,15 +5,16 @@
 use dotenv::dotenv;
 
 #[cfg(feature = "capture")]
-mod app;
+mod capture;
 
 #[cfg(feature = "bot")]
-mod discord_bot;
+mod bot;
 
 mod app_context;
 mod db_access;
 mod models;
 mod card_loader;
+pub mod opt;
 
 fn init() {
     println!("OS type: {}", std::env::consts::OS);
@@ -37,7 +38,7 @@ async fn main() {
     init();
     let context = app_context::create_context();
 
-    discord_bot::main(&context).await;
+    bot::main(&context).await;
 }
 
 #[cfg(all(feature = "bot", feature = "capture"))]
@@ -47,9 +48,9 @@ async fn main() {
     let context = app_context::create_context();
 
     if cfg!(feature = "bot") {
-        discord_bot::main(&context).await;
+        bot::main(&context).await;
     } else if cfg!(feature = "capture") {
-        app::main(&context).await;
+        capture::main(&context).await;
     } else {
         panic!("No feature specified");
     }

@@ -21,6 +21,10 @@ impl DraftRecord {
             selected_card: None,
         }
     }
+    pub fn get_id(&self) -> Vec<String> {
+        vec![self.game_id.to_string(), self.pick.pick_id.to_string()]
+    }
+
     pub fn set_selection_vec(&mut self, selections: &[&str]) {
         self.selection_vec = selections
             .iter()
@@ -60,6 +64,10 @@ impl DraftPick {
             pick_id: id,
             pick_str: format!("p{}p{}", pack, pick),
         }
+    }
+
+    pub fn to_string(&self) -> String {
+        format!("{} ({})", self.pick_id, self.pick_str)
     }
 }
 

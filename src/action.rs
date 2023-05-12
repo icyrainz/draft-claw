@@ -1,4 +1,4 @@
-juse std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin};
 
 pub fn wrap_action<'a, C: Fn() -> F + 'static, F: Future<Output = ()> + 'static>(
     action: C,

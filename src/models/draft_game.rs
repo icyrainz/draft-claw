@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-
-use super::draft_data::DraftPick;
+use super::draft_data::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DraftGame {
@@ -27,11 +25,11 @@ impl DraftVote {
             vote_idx,
         }
     }
-    pub fn get_record_key(&self) -> Vec<String> {
+    pub fn get_id(&self) -> Vec<String> {
         vec![
             self.game_id.to_string(),
             self.user_id.to_string(),
-            json!(self.draft_pick).to_string(),
+            self.draft_pick.pick_id.to_string(),
         ]
     }
 }
