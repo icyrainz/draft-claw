@@ -3,8 +3,11 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = "draft-claw-bot"
+app = "draft-claw-capture"
 primary_region = "sea"
+
+[build]
+  dockerfile = "Dockerfile.capture"
 
 [http_service]
   internal_port = 8080

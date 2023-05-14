@@ -109,13 +109,11 @@ async fn get_draft_data(game_id: &str) -> Option<(DraftPick, String)> {
     }
 }
 
-async fn find_card_in_list(ctx: &Context, list: &[String], input_str: &str) -> Option<u8> {
-    let card_index = {
-        let data = ctx.data.read().await;
-        data.get::<BotCardIndex>()
-            .expect("Expected CardIndex in TypeMap.")
-            .clone()
-    };
+async fn find_card_in_list(list: &[String], input_str: &str) -> Option<u8> {
+    let card_index = list.iter().fold(SearchIndex::default(), |mut acc, item| {
+        acc.insert(item, item);
+        acc
+    });
     let search_result = card_index.search(input_str);
 
     let search_in_list_result = list
@@ -315,7 +313,7 @@ async fn vote_card(
             }
         }
     } else {
-        vote_idx = find_card_in_list(ctx, &draft_record.selection_vec, vote_text)
+        vote_idx = find_card_in_list(&draft_record.selection_vec, vote_text)
             .await
             .ok_or("Unable to find card in list with vote text".to_string())?;
     }
@@ -449,7 +447,8 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             let draft_data = get_draft_data(&game_id).await;
                             match draft_data {
                                 Some(draft_data_unwrap) => {
-                                    reply.add(format!("Card {} of 48", draft_data_unwrap.0.pick_id));
+                                    reply
+                                        .add(format!("Card {} of 48", draft_data_unwrap.0.pick_id));
                                     reply.add_boxed(draft_data_unwrap.1);
                                 }
                                 None => {

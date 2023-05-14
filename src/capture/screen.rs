@@ -109,6 +109,10 @@ lazy_static! {
         ScreenRect::new( 615, 565, 160, 14),
         ScreenRect::new( 839, 565, 160, 14),
         ScreenRect::new(1062, 565, 160, 14),
+        ScreenRect::new( 393, 880, 160, 14),
+        ScreenRect::new( 615, 880, 160, 14),
+        ScreenRect::new( 839, 880, 160, 14),
+        ScreenRect::new(1062, 880, 160, 14),
     ];
     pub static ref DECK_POSITIONS: Vec<(ScreenRect, ScreenRect)> = vec![
     ];
@@ -157,6 +161,7 @@ fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<Scre
         let count = lt.get_utf8_text().expect("get text failed");
         captured_deck_vec.push((text, count));
     }
+    dbg!(&captured_deck_vec);
 
     Ok(ScreenData {
         pick_num: pic_number_text,

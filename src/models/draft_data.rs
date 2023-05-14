@@ -73,6 +73,10 @@ impl DraftPick {
     pub fn to_string(&self) -> String {
         format!("{} ({})", self.pick_id, self.pick_str)
     }
+
+    pub fn get_expected_card_selection_count(&self) -> u8 {
+        12 - (self.pick_id - 1) % 12
+    }
 }
 
 fn get_next_draft_pick(pick: &DraftPick) -> DraftPick {
@@ -119,5 +123,18 @@ mod test {
         let next_pick2 = get_next_draft_pick(&pick2);
         assert_eq!(next_pick2.pick_id, 13);
         assert_eq!(next_pick2.pick_str, "p2p1");
+    }
+
+    #[test]
+    fn test_expected_card_selection_count() {
+        assert_eq!(DraftPick::new(1).get_expected_card_selection_count(), 12);
+        assert_eq!(DraftPick::new(2).get_expected_card_selection_count(), 11);
+        assert_eq!(DraftPick::new(3).get_expected_card_selection_count(), 10);
+        assert_eq!(DraftPick::new(11).get_expected_card_selection_count(), 2);
+        assert_eq!(DraftPick::new(12).get_expected_card_selection_count(), 1);
+        assert_eq!(DraftPick::new(13).get_expected_card_selection_count(), 12);
+        assert_eq!(DraftPick::new(14).get_expected_card_selection_count(), 11);
+        assert_eq!(DraftPick::new(47).get_expected_card_selection_count(), 2);
+        assert_eq!(DraftPick::new(48).get_expected_card_selection_count(), 1);
     }
 }

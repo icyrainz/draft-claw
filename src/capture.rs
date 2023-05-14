@@ -1,5 +1,6 @@
 use crate::opt::*;
 
+use std::collections::HashSet;
 use std::{collections::HashMap, time};
 
 use indicium::simple::SearchIndex;
@@ -19,6 +20,9 @@ const GAME_ID_LENGTH: usize = 8;
 const CURRENT_GAME_ID_KEY: &str = "current_game_id";
 
 const LABEL_ACTION_SELECT: &str = "Select";
+const LABEL_ACTION_AUTO_MODE: &str = "Auto";
+const LABEL_ACTION_AUTO_MODE_ALL: &str = "All";
+const LABEL_ACTION_AUTO_MODE_ONCE: &str = "Once";
 
 const LABEL_NEW_GAME: &str = "New Game";
 const LABEL_EXISTING_GAME: &str = "Existing Game";
@@ -58,10 +62,14 @@ pub async fn main(context: &AppContext) {
         terminal_menu::back_button(LABEL_EXIT),
     ]);
 
+    let mut auto_mode_all: bool = false;
+
     let mut game_id = context.read_data(CURRENT_GAME_ID_KEY).unwrap_or_default();
     terminal_menu::run(&game_menu);
 
     loop {
+        tokio::time::sleep(time::Duration::from_secs(1)).await;
+
         {
             let menu_selection = terminal_menu::mut_menu(&game_menu);
             match menu_selection.selected_item_name() {
@@ -103,33 +111,6 @@ pub async fn main(context: &AppContext) {
             }
         }
 
-        // let action_menu = terminal_menu::menu(vec![
-        //     terminal_menu::label(LABEL_MENU_ACTION),
-        //     terminal_menu::label(
-        //         std::iter::repeat('-')
-        //             .take(LABEL_MENU_ACTION.len())
-        //             .collect::<String>(),
-        //     ),
-        //     terminal_menu::button(LABEL_MATCH),
-        //     terminal_menu::button(LABEL_CONTINUE),
-        // ]);
-        // terminal_menu::run(&action_menu);
-        //
-        // let input: String;
-        // {
-        //     let action_menu_instance = terminal_menu::mut_menu(&action_menu);
-        //
-        //     if action_menu_instance.canceled() {
-        //         return;
-        //     }
-        //     match action_menu_instance.selected_item_name() {
-        //         LABEL_CONTINUE => {
-        //             continue;
-        //         }
-        //         LABEL_MATCH | _ => {}
-        //     }
-        // }
-
         let draft_record: DraftRecord;
 
         match capture_draft_record(&runtime_data, &game_id) {
@@ -145,8 +126,6 @@ pub async fn main(context: &AppContext) {
                         if record_in_db.selected_card.is_some() {
                             record.selected_card = record_in_db.selected_card;
                         }
-
-                        dbg!(&record);
                     }
                     _ => {
                         log(format!("Unable to get existing draft record. Overwriting with new captured data."));
@@ -173,79 +152,92 @@ pub async fn main(context: &AppContext) {
             None => "No voted card".to_string(),
         };
 
-        let select_card_menu = terminal_menu::menu(vec![
-            terminal_menu::label(LABEL_MENU_SELECT_CARD),
-            terminal_menu::label(
-                std::iter::repeat('-')
-                    .take(LABEL_MENU_SELECT_CARD.len())
-                    .collect::<String>(),
-            ),
-            terminal_menu::label(format!("Commited card: {}", auto_selected_card)),
-            terminal_menu::button(LABEL_CONFIRM_AUTO),
-            terminal_menu::scroll(
-                LABEL_ACTION_SELECT,
-                draft_record
-                    .selection_vec
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, card)| {
-                        if card.is_empty() {
-                            None
-                        } else {
-                            Some(format!("{}: {}", i + 1, card))
-                        }
-                    })
-                    .collect::<Vec<String>>(),
-            ),
-            terminal_menu::button(LABEL_CONFIRM_MANUAL),
-            terminal_menu::button(LABEL_CONTINUE),
-        ]);
-        terminal_menu::run(&select_card_menu);
+        let input: Option<u8>;
+        if auto_mode_all {
+            input = draft_record.selected_card;
+            log(format!("Auto selected: {:?}", input));
+        } else {
+            let select_card_menu = terminal_menu::menu(vec![
+                terminal_menu::label(LABEL_MENU_SELECT_CARD),
+                terminal_menu::label(
+                    std::iter::repeat('-')
+                        .take(LABEL_MENU_SELECT_CARD.len())
+                        .collect::<String>(),
+                ),
+                terminal_menu::label(format!("Commited card: {}", auto_selected_card)),
+                terminal_menu::list(
+                    LABEL_ACTION_AUTO_MODE,
+                    vec![LABEL_ACTION_AUTO_MODE_ONCE, LABEL_ACTION_AUTO_MODE_ALL],
+                ),
+                terminal_menu::button(LABEL_CONFIRM_AUTO),
+                terminal_menu::scroll(
+                    LABEL_ACTION_SELECT,
+                    draft_record
+                        .selection_vec
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(i, card)| {
+                            if card.is_empty() {
+                                None
+                            } else {
+                                Some(format!("{}: {}", i + 1, card))
+                            }
+                        })
+                        .collect::<Vec<String>>(),
+                ),
+                terminal_menu::button(LABEL_CONFIRM_MANUAL),
+                terminal_menu::button(LABEL_CONTINUE),
+            ]);
+            terminal_menu::run(&select_card_menu);
 
-        let input: String;
-        {
-            let select_card_menu_instance = terminal_menu::mut_menu(&select_card_menu);
+            {
+                let select_card_menu_instance = terminal_menu::mut_menu(&select_card_menu);
 
-            if select_card_menu_instance.canceled() {
-                return;
-            }
-            match select_card_menu_instance.selected_item_name() {
-                LABEL_CONFIRM_MANUAL => {
-                    input = select_card_menu_instance
-                        .selection_value(LABEL_ACTION_SELECT)
-                        .split(":")
-                        .next()
-                        .unwrap_or("invalid")
-                        .to_string();
-                    log(format!("Manually selected: {}", input));
-                }
-                LABEL_CONFIRM_AUTO => {
-                    input = draft_record
-                        .selected_card
-                        .map_or(String::new(), |item| item.to_string());
-                    log(format!("Auto selected: {}", input));
-                }
-                LABEL_CONTINUE => {
-                    continue;
-                }
-                _ => {
-                    log("Invalid menu option".to_string());
+                if select_card_menu_instance.canceled() {
                     return;
                 }
+                match select_card_menu_instance.selected_item_name() {
+                    LABEL_CONFIRM_MANUAL => {
+                        input = select_card_menu_instance
+                            .selection_value(LABEL_ACTION_SELECT)
+                            .split(":")
+                            .next()
+                            .map_or(None, |s| s.parse::<u8>().ok());
+                        log(format!("Manually selected: {:?}", input));
+                    }
+                    LABEL_CONFIRM_AUTO => {
+                        auto_mode_all = match select_card_menu_instance
+                            .selection_value(LABEL_ACTION_AUTO_MODE)
+                        {
+                            LABEL_ACTION_AUTO_MODE_ONCE => false,
+                            LABEL_ACTION_AUTO_MODE_ALL => true,
+                            _ => false,
+                        };
+
+                        input = draft_record.selected_card;
+                        log(format!("Auto selected: {:?}", input));
+                    }
+                    LABEL_CONTINUE => {
+                        continue;
+                    }
+                    _ => {
+                        log("Invalid menu option".to_string());
+                        return;
+                    }
+                }
             }
         }
-
-        match input.as_str() {
-            other if other.parse::<u8>().is_ok() => {
-                let card_index = input.parse::<u8>().unwrap() - 1;
-                screen::select_card(card_index).expect("unable to select card");
-            }
-            _ => {
-                log("continue".to_string());
+        match input {
+            Some(card_index) => match screen::select_card(card_index) {
+                Ok(_) => {}
+                Err(err) => {
+                    log(format!("Unable to select card: {}", err));
+                }
+            },
+            None => {
+                log(format!("Invalid input {:?}", input));
             }
         }
-
-        tokio::time::sleep(time::Duration::from_secs(1)).await;
     }
 }
 
@@ -267,6 +259,7 @@ pub async fn upload_card_rating() {
 
 pub struct RuntimeData {
     card_map: HashMap<String, Card>,
+    card_name_tokens: HashSet<String>,
     card_index: SearchIndex<String>,
     card_ratings: HashMap<String, String>,
 }
@@ -284,23 +277,31 @@ fn initialize_runtime_data() -> RuntimeData {
         acc
     });
 
+    let card_name_tokens = cards.iter().fold(HashSet::new(), |mut acc, card| {
+        card.name.split_whitespace().for_each(|token| {
+            acc.insert(token.to_string());
+        });
+        acc
+    });
+
     let card_ratings = card_loader::load_card_rating();
 
     RuntimeData {
         card_map,
+        card_name_tokens,
         card_index,
         card_ratings,
     }
 }
 
-pub struct ScreenMatchedData {
+struct ScreenMatchedData {
     pub pick_num: u8,
     pub selection_text: String,
     pub selection_vec: Vec<String>,
     pub deck: Vec<String>,
 }
 
-pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData, String> {
+fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData, String> {
     let screen_data = screen::capture_raw_text_on_screen()?;
 
     let card_texts = screen_data
@@ -308,9 +309,10 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
         .iter()
         .map(|card| card.as_str())
         .collect::<Vec<&str>>();
-    let matched_card_names = card_matcher::find_card_name_matches(&data.card_index, &card_texts);
+    let matched_card_names =
+        card_matcher::find_card_name_matches(&data.card_index, &data.card_name_tokens, &card_texts);
 
-    let pick_numer = screen_data
+    let pick_number = screen_data
         .pick_num
         .split_whitespace()
         .nth(1)
@@ -324,7 +326,16 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
         .cloned()
         .collect::<Vec<Card>>();
 
-    log(format!("Found {} cards on screen.", matched_cards.len()));
+    let expected_count = DraftPick::new(pick_number).get_expected_card_selection_count() as usize;
+    if expected_count != matched_cards.len() {
+        return Err(format!(
+            "Expected {} cards, but found {} cards",
+            expected_count,
+            matched_cards.len()
+        ));
+    } else {
+        log(format!("Found {} cards on screen.", matched_cards.len()));
+    }
 
     let mut draft_selection_text = String::new();
     let mut draft_selection_vec = Vec::new();
@@ -344,6 +355,7 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
     let mut deck = Vec::new();
     let matched_deck_names = card_matcher::find_card_name_matches(
         &data.card_index,
+        &data.card_name_tokens,
         &screen_data
             .deck
             .iter()
@@ -376,7 +388,7 @@ pub fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData,
     dbg!(&deck);
 
     Ok(ScreenMatchedData {
-        pick_num: pick_numer,
+        pick_num: pick_number,
         selection_text: draft_selection_text,
         selection_vec: draft_selection_vec,
         deck,
