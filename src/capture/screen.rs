@@ -1,3 +1,5 @@
+use crate::opt::*;
+
 use lazy_static::lazy_static;
 use leptess::LepTess;
 
@@ -10,7 +12,10 @@ const ETERNAL_SCREEN_FILE_NAME: &str = "game.png";
 const ETERNAL_SCREEN_PROCESSED_FILE_NAME: &str = "game_processed.png";
 const TESS_DATA: &str = "./resource/tessdata";
 
-const ANDROID_ADB_PATH: &str = "/Users/tuephan/Library/Android/sdk/platform-tools/adb";
+// const ANDROID_ADB_PATH: &str = "/Users/tuephan/Library/Android/sdk/platform-tools/adb";
+const ANDROID_ADB_PATH: &str = "adb";
+
+const ANDROID_HOST_ENV_KEY: &str = "ANDROID_HOST";
 
 pub struct ScreenRect {
     pub x: i32,
@@ -30,7 +35,7 @@ impl ScreenRect {
     }
 }
 
-fn get_eternal_screen_path() -> Result<String, String> {
+pub fn get_eternal_screen_path() -> Result<String, String> {
     fs::create_dir_all(RUNTIME_PATH).map_err(|err| err.to_string())?;
 
     let path = PathBuf::from(RUNTIME_PATH)
@@ -40,7 +45,7 @@ fn get_eternal_screen_path() -> Result<String, String> {
     Ok(path)
 }
 
-fn get_eternal_screen_processed_path() -> Result<String, String> {
+pub fn get_eternal_screen_processed_path() -> Result<String, String> {
     fs::create_dir_all(RUNTIME_PATH).map_err(|err| err.to_string())?;
 
     let path = PathBuf::from(RUNTIME_PATH)
@@ -202,4 +207,15 @@ pub fn select_card(card_index: u8) -> Result<(), String> {
         .map(|out| {
             dbg!(&out);
         })
+}
+
+pub fn connect_eternal_screen() -> Res<()> {
+    let android_host = std::env::var(ANDROID_HOST_ENV_KEY).expect("Android host variable not set");
+
+    Command::new(ANDROID_ADB_PATH)
+        .arg("connect")
+        .arg(android_host)
+        .output()
+        .map(|_| ())
+        .map_err(|err| err.to_string())
 }

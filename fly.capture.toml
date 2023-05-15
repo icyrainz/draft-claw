@@ -13,3 +13,6 @@ primary_region = "sea"
   internal_port = 8080
   force_https = true
   auto_start_machines = true
+
+[env]
+  GAME_ID = "C4UU1MSy"

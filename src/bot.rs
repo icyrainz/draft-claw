@@ -29,6 +29,7 @@ const DRAFT_CMD: &str = if cfg!(debug_assertions) {
 };
 const DRAFT_CMD_HELP: &str = r#"
 !draft - Get the current draft selection
+!draft pic - Get the screenshot of current draft selection
 !draft reg <game_id> - Register an existing draft
 !draft own <game_id> - Register and own a game
 !draft deck - Get the current deck
@@ -42,6 +43,7 @@ const DRAFT_OWN_CMD: &str = "own";
 const DRAFT_DECK_CMD: &str = "deck";
 const DRAFT_VOTE_CMD: &str = "vote";
 const DRAFT_COMMIT_CMD: &str = "commit";
+const DRAFT_PIC_CMD: &str = "pic";
 
 const CARD_COMMAND: &str = "!card";
 
@@ -229,14 +231,21 @@ async fn own_game(ctx: &Context, user: &str, game_id: &str) -> Result<(), String
 }
 
 async fn get_decklist(game_id: &str) -> String {
-    let deck_list = match db_access::get_last_draft_record(game_id).await {
-        Ok(Some(record)) => {
-            format!("{}", record.decklist_text.join("\n"))
+    let deck_list = match db_access::get_decklist(game_id).await {
+        Ok(deck_list) => {
+            format!("{}", deck_list.join("\n"))
         }
         _ => "No data".to_string(),
     };
 
     deck_list
+}
+
+async fn get_last_pic(game_id: &str) -> Option<String> {
+    db_access::get_last_draft_record(game_id)
+        .await
+        .ok()?
+        .and_then(|record| record.image_url.map(String::from))
 }
 
 async fn get_chosen_pick(game_id: &str) -> Result<u8, String> {
@@ -442,6 +451,14 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                         },
                         DRAFT_DECK_CMD => {
                             reply.add_boxed(get_decklist(&game_id).await);
+                        }
+                        DRAFT_PIC_CMD => {
+                            let msg = match get_last_pic(&game_id).await {
+                                Some(image_url) => image_url,
+                                None => "No image".to_string(),
+                            };
+
+                            reply.add(msg);
                         }
                         _ => {
                             let draft_data = get_draft_data(&game_id).await;

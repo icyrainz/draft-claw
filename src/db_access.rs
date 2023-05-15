@@ -3,6 +3,7 @@ use crate::models::draft_data::*;
 use crate::models::draft_game::*;
 use crate::opt::*;
 
+use std::collections::HashMap;
 use std::env;
 
 use surrealdb::Surreal;
@@ -74,7 +75,8 @@ pub async fn get_draft_record(game_id: &str, pick: &DraftPick) -> Res<Option<Dra
 
     let record: Option<DraftRecord> = db
         .select((DRAFT_RECORD_TABLE, DraftRecord::generate_id(game_id, pick)))
-        .await.err_to_str()?;
+        .await
+        .err_to_str()?;
 
     Ok(record)
 }
@@ -183,8 +185,6 @@ pub async fn get_highest_voted_pick(game_id: &str, draft_pick: &DraftPick) -> Re
         DRAFT_VOTE_TABLE, game_id, draft_pick.pick_id
     );
 
-    log(format!("Query: {}", query));
-
     let result: Res<Option<u8>> = db
         .query(query)
         .bind(("table", DRAFT_VOTE_TABLE))
@@ -195,4 +195,41 @@ pub async fn get_highest_voted_pick(game_id: &str, draft_pick: &DraftPick) -> Re
 
     log(format!("Got highest voted pick: {:?}", result));
     result
+}
+
+pub async fn get_decklist(game_id: &str) -> Res<Vec<String>> {
+    let db = get_db().await?;
+
+    let query = format!(
+        "select selected_card, selection_vec from draft_record where game_id = '{}'",
+        game_id
+    );
+
+    #[derive(serde::Deserialize)]
+    struct DecklistQueryResult {
+        selected_card: Option<u32>,
+        selection_vec: Option<Vec<String>>,
+    }
+
+    let result: Vec<DecklistQueryResult> = db
+        .query(query)
+        .bind(("table", DRAFT_RECORD_TABLE))
+        .await
+        .err_to_str()?
+        .take(0)
+        .err_to_str()?;
+
+    let mapped_res = result
+        .iter()
+        .filter_map(|record| {
+            record.selected_card.and_then(|idx| {
+                record
+                    .selection_vec
+                    .as_ref()
+                    .and_then(|selection_vec| selection_vec.get(idx as usize).cloned())
+            })
+        })
+        .collect();
+
+    Ok(mapped_res)
 }

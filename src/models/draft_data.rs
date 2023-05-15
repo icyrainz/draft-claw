@@ -8,6 +8,7 @@ pub struct DraftRecord {
     pub selection_vec: Vec<String>,
     pub decklist_text: Vec<String>,
     pub selected_card: Option<u8>,
+    pub image_url: Option<String>,
 }
 
 impl DraftRecord {
@@ -19,6 +20,7 @@ impl DraftRecord {
             selection_vec: Vec::new(),
             decklist_text: Vec::new(),
             selected_card: None,
+            image_url: None,
         }
     }
     pub fn get_id(&self) -> Vec<String> {
@@ -46,6 +48,10 @@ impl DraftRecord {
 
     pub fn pick_card(&mut self, selected_card: u8) {
         self.selected_card = Some(selected_card);
+    }
+
+    pub fn set_image_url(&mut self, image_url: &str) {
+        self.image_url = Some(image_url.to_string());
     }
 }
 

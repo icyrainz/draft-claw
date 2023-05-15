@@ -12,6 +12,7 @@ use super::*;
 use crate::models::card::*;
 
 mod card_matcher;
+pub mod image_uploader;
 mod ocr_engine;
 mod screen;
 
@@ -42,6 +43,7 @@ fn log(s: String) {
     log_if(s.as_str(), DbgFlg::Capture);
 }
 
+#[cfg(feature = "capture-interactive")]
 pub async fn main(context: &AppContext) {
     let runtime_data = initialize_runtime_data();
 
@@ -69,6 +71,15 @@ pub async fn main(context: &AppContext) {
 
     loop {
         tokio::time::sleep(time::Duration::from_secs(1)).await;
+        match screen::connect_eternal_screen() {
+            Err(err) => {
+                log(format!("Unable to connect to screen: {}", err));
+                continue;
+            }
+            _ => {
+                log(format!("Connected to screen!"));
+            }
+        };
 
         {
             let menu_selection = terminal_menu::mut_menu(&game_menu);
@@ -111,52 +122,25 @@ pub async fn main(context: &AppContext) {
             }
         }
 
-        let draft_record: DraftRecord;
-
-        match capture_draft_record(&runtime_data, &game_id) {
-            Ok(mut record) => {
-                match db_access::get_draft_record(&game_id, &record.pick).await {
-                    Ok(Some(record_in_db)) => {
-                        log(format!(
-                            "Record of {} in game {} exists in db",
-                            record.pick.to_string(),
-                            game_id
-                        ));
-
-                        if record_in_db.selected_card.is_some() {
-                            record.selected_card = record_in_db.selected_card;
-                        }
-                    }
-                    _ => {
-                        log(format!("Unable to get existing draft record. Overwriting with new captured data."));
-                    }
-                }
-
-                // insert draft record into db
-                db_access::upsert_draft_record(&record)
-                    .await
-                    .unwrap_or_else(|err| {
-                        log(format!("Unable to insert draft record: {}", err));
-                    });
-
-                draft_record = record.clone();
-            }
-            Err(e) => {
-                log(format!("Unable to capture draft record: {}", e));
-                continue;
-            }
-        }
-
-        let auto_selected_card = match draft_record.selected_card {
-            Some(idx) => draft_record.selection_vec[idx as usize].to_owned(),
-            None => "No voted card".to_string(),
+        let draft_record = match loop_capture(&runtime_data, &game_id).await {
+            Ok(record) => record,
+            Err(_) => continue,
         };
 
+        let decklist = db_access::get_decklist(&game_id).await;
+        dbg!(&decklist);
+
         let input: Option<u8>;
+
         if auto_mode_all {
             input = draft_record.selected_card;
             log(format!("Auto selected: {:?}", input));
         } else {
+            let auto_selected_card = match draft_record.selected_card {
+                Some(idx) => draft_record.selection_vec[idx as usize].to_owned(),
+                None => "No voted card".to_string(),
+            };
+
             let select_card_menu = terminal_menu::menu(vec![
                 terminal_menu::label(LABEL_MENU_SELECT_CARD),
                 terminal_menu::label(
@@ -227,16 +211,104 @@ pub async fn main(context: &AppContext) {
                 }
             }
         }
-        match input {
-            Some(card_index) => match screen::select_card(card_index) {
-                Ok(_) => {}
-                Err(err) => {
-                    log(format!("Unable to select card: {}", err));
-                }
-            },
-            None => {
-                log(format!("Invalid input {:?}", input));
+
+        act_on_input(input);
+    }
+}
+
+#[cfg(all(feature = "capture", not(feature = "capture-interactive")))]
+pub async fn main(context: &AppContext) {
+    let runtime_data = initialize_runtime_data();
+
+    loop {
+        tokio::time::sleep(time::Duration::from_secs(1)).await;
+        match screen::connect_eternal_screen() {
+            Err(err) => {
+                log(format!("Unable to connect to screen: {}", err));
+                continue;
             }
+            _ => {
+                log(format!("Connected to screen!"));
+            }
+        };
+
+        // TODO: add ability to select game id
+        let game_id = std::env::var("GAME_ID").expect("GAME_ID not set");
+
+        let draft_record = match loop_capture(&runtime_data, &game_id).await {
+            Ok(record) => record,
+            Err(_) => continue,
+        };
+
+        let input: Option<u8>;
+        input = draft_record.selected_card;
+        act_on_input(input);
+    }
+}
+
+async fn loop_capture(runtime_data: &RuntimeData, game_id: &str) -> Res<DraftRecord> {
+    let draft_record: DraftRecord;
+
+    match capture_draft_record(&runtime_data, &game_id) {
+        Ok((mut record, image_path)) => {
+            let overwrite = match db_access::get_draft_record(&game_id, &record.pick).await {
+                Ok(Some(record_in_db)) => {
+                    log(format!(
+                        "Record of {} in game {} exists in db",
+                        record.pick.to_string(),
+                        game_id
+                    ));
+
+                    if record_in_db.selected_card.is_some() {
+                        record.selected_card = record_in_db.selected_card;
+                    }
+
+                    record_in_db.selection_vec != record.selection_vec
+                        || record_in_db.image_url.is_none()
+                }
+                _ => {
+                    log(format!(
+                        "Unable to get existing draft record. Overwriting with new captured data."
+                    ));
+                    true
+                }
+            };
+
+            if overwrite {
+                let image_url = image_uploader::upload_image(&image_path).await?;
+                log(format!("Uploaded image to: {}", &image_url));
+                
+                record.set_image_url(&image_url);
+
+                // insert draft record into db
+                db_access::upsert_draft_record(&record)
+                    .await
+                    .unwrap_or_else(|err| {
+                        log(format!("Unable to insert draft record: {}", err));
+                    });
+            }
+
+            draft_record = record.clone();
+        }
+        Err(e) => {
+            log(format!("Unable to capture draft record: {}", e));
+            return Err(e);
+        }
+    }
+
+    Ok(draft_record)
+}
+
+fn act_on_input(input: Option<u8>) {
+    match input {
+        Some(card_index) => match screen::select_card(card_index) {
+            Ok(_) => {}
+            Err(err) => {
+                log(format!("Unable to select card: {}", err));
+            }
+        },
+        None => {
+            log(format!("Invalid input {:?}", input));
         }
     }
 }
@@ -299,9 +371,10 @@ struct ScreenMatchedData {
     pub selection_text: String,
     pub selection_vec: Vec<String>,
     pub deck: Vec<String>,
+    pub image_path: String,
 }
 
-fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData, String> {
+fn get_draft_selection_text(data: &RuntimeData) -> Res<ScreenMatchedData> {
     let screen_data = screen::capture_raw_text_on_screen()?;
 
     let card_texts = screen_data
@@ -392,13 +465,14 @@ fn get_draft_selection_text(data: &RuntimeData) -> Result<ScreenMatchedData, Str
         selection_text: draft_selection_text,
         selection_vec: draft_selection_vec,
         deck,
+        image_path: screen::get_eternal_screen_path()?,
     })
 }
 
 pub fn capture_draft_record(
     runtime_data: &RuntimeData,
     game_id: &str,
-) -> Result<DraftRecord, String> {
+) -> Res<(DraftRecord, String)> {
     log("Capturing draft record...".to_string());
 
     let screen_matched_data = get_draft_selection_text(&runtime_data)?;
@@ -435,7 +509,7 @@ pub fn capture_draft_record(
             .map(|s| s.as_str())
             .collect::<Vec<&str>>(),
     );
-    Ok(draft_record)
+    Ok((draft_record, screen_matched_data.image_path))
 }
 
 pub fn load_card_hashmap_by_name() -> HashMap<String, Card> {

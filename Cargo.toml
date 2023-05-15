@@ -5,8 +5,9 @@ edition = "2021"
 
 [features]
 default = ["capture", "bot"]
-capture = ["terminal-menu", "leptess", "image", "opencv"]
-bot = ["serenity"]
+capture = ["dep:leptess", "dep:image", "dep:opencv"]
+capture-interactive = ["capture", "dep:terminal-menu"]
+bot = ["dep:serenity"]
 
 [dependencies]
 leptess = { version = "0.14.0", optional = true }
@@ -30,6 +31,7 @@ strum_macros = "0.24.1"
 itertools = "0.10.5"
 terminal-menu = { version = "2.0.5", optional = true }
 chrono = "0.4.24"
+imgurs = "0.11.1"
 
 [dev-dependencies]
 tempfile = "3.5.0"

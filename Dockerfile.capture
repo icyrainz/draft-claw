@@ -2,23 +2,19 @@ FROM rust:latest as builder
 
 WORKDIR /usr/src/app
 COPY . .
+
+RUN apt update && apt install -y libtesseract-dev libleptonica-dev clang libopencv-dev
+
 # Will build and cache the binary and dependent crates in release mode
 RUN --mount=type=cache,target=/usr/local/cargo,from=rust:latest,source=/usr/local/cargo \
     --mount=type=cache,target=target \
     cargo build --release --no-default-features --features=capture && mv ./target/release/draft-claw ./draft-claw
 
-# Create a new stage for Tesseract
-FROM jitesoft/tesseract-ocr as tesseract
-
 # Runtime image
 FROM debian:bullseye-slim
 
-# Get the necessary libraries from the tesseract image
-COPY --from=tesseract /usr/lib /usr/lib
-COPY --from=tesseract /usr/share/pkgconfig /usr/share/pkgconfig
-
-# Set the PKG_CONFIG_PATH environment variable
-ENV PKG_CONFIG_PATH=/usr/share/pkgconfig
+# Install necessary dependencies
+RUN apt update && apt install -y tesseract-ocr libopencv-dev android-sdk-platform-tools
 
 # Run as "app" user
 RUN useradd -ms /bin/bash app
