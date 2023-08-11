@@ -3,7 +3,11 @@ use crate::opt::*;
 use lazy_static::lazy_static;
 use leptess::LepTess;
 
-use std::{fs::{self, File}, path::PathBuf, process::{Command, Stdio}};
+use std::{
+    fs::{self, File},
+    path::PathBuf,
+    process::{Command, Stdio},
+};
 
 const RUNTIME_PATH: &str = "./";
 // const ETERNAL_WINDOW_NAME: &str = "Eternal Card Game";
@@ -106,21 +110,20 @@ fn capture_game_window_adb(output_path: &str) -> Result<(), String> {
 // 1920 x 1080
 lazy_static! {
     pub static ref CARD_POSITIONS: Vec<ScreenRect> = vec![
-        ScreenRect::new( 393, 250, 160, 14),
-        ScreenRect::new( 615, 250, 160, 14),
-        ScreenRect::new( 839, 250, 160, 14),
+        ScreenRect::new(393, 250, 160, 14),
+        ScreenRect::new(615, 250, 160, 14),
+        ScreenRect::new(839, 250, 160, 14),
         ScreenRect::new(1062, 250, 160, 14),
-        ScreenRect::new( 393, 565, 160, 14),
-        ScreenRect::new( 615, 565, 160, 14),
-        ScreenRect::new( 839, 565, 160, 14),
+        ScreenRect::new(393, 565, 160, 14),
+        ScreenRect::new(615, 565, 160, 14),
+        ScreenRect::new(839, 565, 160, 14),
         ScreenRect::new(1062, 565, 160, 14),
-        ScreenRect::new( 393, 880, 160, 14),
-        ScreenRect::new( 615, 880, 160, 14),
-        ScreenRect::new( 839, 880, 160, 14),
+        ScreenRect::new(393, 880, 160, 14),
+        ScreenRect::new(615, 880, 160, 14),
+        ScreenRect::new(839, 880, 160, 14),
         ScreenRect::new(1062, 880, 160, 14),
     ];
-    pub static ref DECK_POSITIONS: Vec<(ScreenRect, ScreenRect)> = vec![
-    ];
+    pub static ref DECK_POSITIONS: Vec<(ScreenRect, ScreenRect)> = vec![];
     pub static ref PICK_NUM_POSITION: ScreenRect = ScreenRect::new(1055, 1008, 185, 31);
 }
 
@@ -130,8 +133,28 @@ pub struct ScreenData {
     pub deck: Vec<(String, String)>,
 }
 
-fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<ScreenData, String> {
-    let tess_data = if with_data { Some(TESS_DATA) } else { None };
+pub struct CaptureOpt {
+    pub with_tess_data: bool,
+    pub ocr_pick: bool,
+    pub ocr_deck: bool,
+}
+
+impl CaptureOpt {
+    pub fn default() -> Self {
+        CaptureOpt {
+            with_tess_data: true,
+            ocr_pick: true,
+            ocr_deck: true,
+        }
+    }
+}
+
+fn capture_raw_text_from_image(image_path: &str, opt: &CaptureOpt) -> Result<ScreenData, String> {
+    let tess_data = if opt.with_tess_data {
+        Some(TESS_DATA)
+    } else {
+        None
+    };
 
     let mut lt = LepTess::new(tess_data, "eng").expect("tesseract init failed");
     lt.set_image(image_path).expect("set image failed");
@@ -142,12 +165,14 @@ fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<Scre
 
     dbg!((screen_width, screen_height));
 
-    for rect in CARD_POSITIONS.iter() {
-        lt.set_rectangle(rect.x, rect.y, rect.width, rect.height);
-        let text = lt.get_utf8_text().expect("get text failed");
-        captured_card_vec.push(text);
+    if opt.ocr_pick {
+        for rect in CARD_POSITIONS.iter() {
+            lt.set_rectangle(rect.x, rect.y, rect.width, rect.height);
+            let text = lt.get_utf8_text().expect("get text failed");
+            captured_card_vec.push(text);
+        }
+        dbg!(&captured_card_vec);
     }
-    dbg!(&captured_card_vec);
 
     lt.set_rectangle(
         PICK_NUM_POSITION.x,
@@ -175,7 +200,7 @@ fn capture_raw_text_from_image(image_path: &str, with_data: bool) -> Result<Scre
     })
 }
 
-pub fn capture_raw_text_on_screen() -> Result<ScreenData, String> {
+pub fn capture_raw_text_on_screen(opt: &CaptureOpt) -> Result<ScreenData, String> {
     let screenshot_path = get_eternal_screen_path()?;
     let process_screenshot_path = get_eternal_screen_processed_path()?;
 
@@ -183,7 +208,7 @@ pub fn capture_raw_text_on_screen() -> Result<ScreenData, String> {
 
     super::ocr_engine::process_image(&screenshot_path, &process_screenshot_path)
         .map_err(|err| err.to_string())?;
-    capture_raw_text_from_image(&process_screenshot_path, true)
+    capture_raw_text_from_image(&process_screenshot_path, opt)
 }
 
 fn get_card_position(card_index: u8) -> (i32, i32) {
@@ -212,10 +237,11 @@ pub fn select_card(card_index: u8) -> Result<(), String> {
 pub fn connect_eternal_screen() -> Res<()> {
     let android_host = std::env::var(ANDROID_HOST_ENV_KEY).expect("Android host variable not set");
 
-    Command::new(ANDROID_ADB_PATH)
-        .arg("connect")
-        .arg(android_host)
-        .output()
-        .map(|_| ())
-        .map_err(|err| err.to_string())
+    // Command::new(ANDROID_ADB_PATH)
+    //     .arg("connect")
+    //     .arg(android_host)
+    //     .output()
+    //     .map(|_| ())
+    //     .map_err(|err| err.to_string())
+    Ok(())
 }

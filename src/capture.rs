@@ -1,3 +1,4 @@
+use crate::capture::screen::CaptureOpt;
 use crate::opt::*;
 
 use std::collections::HashSet;
@@ -12,7 +13,7 @@ use super::*;
 use crate::models::card::*;
 
 mod card_matcher;
-pub mod image_uploader;
+mod image_uploader;
 mod ocr_engine;
 mod screen;
 
@@ -277,7 +278,7 @@ async fn loop_capture(runtime_data: &RuntimeData, game_id: &str) -> Res<DraftRec
             if overwrite {
                 let image_url = image_uploader::upload_image(&image_path).await?;
                 log(format!("Uploaded image to: {}", &image_url));
-                
+
                 record.set_image_url(&image_url);
 
                 // insert draft record into db
@@ -375,7 +376,8 @@ struct ScreenMatchedData {
 }
 
 fn get_draft_selection_text(data: &RuntimeData) -> Res<ScreenMatchedData> {
-    let screen_data = screen::capture_raw_text_on_screen()?;
+    let capture_opt = CaptureOpt::default();
+    let screen_data = screen::capture_raw_text_on_screen(&capture_opt)?;
 
     let card_texts = screen_data
         .cards
@@ -399,16 +401,18 @@ fn get_draft_selection_text(data: &RuntimeData) -> Res<ScreenMatchedData> {
         .cloned()
         .collect::<Vec<Card>>();
 
-    let expected_count = DraftPick::new(pick_number).get_expected_card_selection_count() as usize;
-    if expected_count != matched_cards.len() {
-        return Err(format!(
-            "Expected {} cards, but found {} cards",
-            expected_count,
-            matched_cards.len()
-        ));
-    } else {
-        log(format!("Found {} cards on screen.", matched_cards.len()));
+    if capture_opt.ocr_pick {
+        let expected_count =
+            DraftPick::new(pick_number).get_expected_card_selection_count() as usize;
+        if expected_count != matched_cards.len() {
+            return Err(format!(
+                "Expected {} cards, but found {} cards",
+                expected_count,
+                matched_cards.len()
+            ));
+        }
     }
+    log(format!("Found {} cards on screen.", matched_cards.len()));
 
     let mut draft_selection_text = String::new();
     let mut draft_selection_vec = Vec::new();

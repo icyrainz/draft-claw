@@ -272,7 +272,9 @@ async fn pick_card(game_id: &str, pick_idx: u8) -> Result<(DraftPick, String), S
         .map_err(|err| err.to_string())?;
     match draft_record {
         Some(draft_record) => {
-            if pick_idx as usize >= draft_record.selection_vec.len() {
+            if draft_record.selection_vec.len() > 0
+                && pick_idx as usize >= draft_record.selection_vec.len()
+            {
                 return Err(format!(
                     "Pick index {} is out of bounds for game {}",
                     pick_idx, game_id
@@ -288,10 +290,13 @@ async fn pick_card(game_id: &str, pick_idx: u8) -> Result<(DraftPick, String), S
                 .await
                 .map_err(|err| err.to_string())?;
 
-            return Ok((
-                draft_record_with_pick.pick,
-                draft_record_with_pick.selection_vec[pick_idx as usize].to_string(),
-            ));
+            let selected_card_text = if draft_record_with_pick.selection_vec.len() > 0 {
+                draft_record_with_pick.selection_vec[pick_idx as usize].to_string()
+            } else {
+                format!("Card at position {}", pick_idx + 1)
+            };
+
+            return Ok((draft_record_with_pick.pick, selected_card_text));
         }
         None => {}
     }
