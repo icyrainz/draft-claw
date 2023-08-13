@@ -28,6 +28,7 @@ const LABEL_ACTION_AUTO_MODE_ONCE: &str = "Once";
 
 const LABEL_NEW_GAME: &str = "New Game";
 const LABEL_EXISTING_GAME: &str = "Existing Game";
+const LABEL_INPUT_GAME_ID: &str = "Input Game ID";
 
 const LABEL_CONFIRM_AUTO: &str = "Confirm Auto";
 const LABEL_CONFIRM_MANUAL: &str = "Confirm Manual";
@@ -60,6 +61,7 @@ pub async fn main(context: &AppContext) {
                 .take(APP_NAME.len())
                 .collect::<String>(),
         ),
+        terminal_menu::string(LABEL_INPUT_GAME_ID, "", true),
         terminal_menu::button(LABEL_EXISTING_GAME),
         terminal_menu::button(LABEL_NEW_GAME),
         terminal_menu::back_button(LABEL_EXIT),
@@ -67,8 +69,12 @@ pub async fn main(context: &AppContext) {
 
     let mut auto_mode_all: bool = false;
 
-    let mut game_id = context.read_data(CURRENT_GAME_ID_KEY).unwrap_or_default();
     terminal_menu::run(&game_menu);
+    let mut game_id: String =
+        match terminal_menu::mut_menu(&game_menu).selection_value(LABEL_INPUT_GAME_ID) {
+            game_id if !game_id.is_empty() => game_id.to_string(),
+            _ => context.read_data(CURRENT_GAME_ID_KEY).unwrap_or_else(String::new),
+        };
 
     loop {
         tokio::time::sleep(time::Duration::from_secs(1)).await;
@@ -89,6 +95,7 @@ pub async fn main(context: &AppContext) {
                     game_id = create_new_game(context);
                 }
                 LABEL_EXISTING_GAME => {
+                    // game_id = "RI37NIhk".to_string();
                     if game_id.is_empty() {
                         log("No existing game found!".to_string());
                         continue;
@@ -379,14 +386,6 @@ fn get_draft_selection_text(data: &RuntimeData) -> Res<ScreenMatchedData> {
     let capture_opt = CaptureOpt::default();
     let screen_data = screen::capture_raw_text_on_screen(&capture_opt)?;
 
-    let card_texts = screen_data
-        .cards
-        .iter()
-        .map(|card| card.as_str())
-        .collect::<Vec<&str>>();
-    let matched_card_names =
-        card_matcher::find_card_name_matches(&data.card_index, &data.card_name_tokens, &card_texts);
-
     let pick_number = screen_data
         .pick_num
         .split_whitespace()
@@ -395,6 +394,17 @@ fn get_draft_selection_text(data: &RuntimeData) -> Res<ScreenMatchedData> {
         .parse::<u8>()
         .map_err(|err| err.to_string())?;
 
+    let expected_count = DraftPick::new(pick_number).get_expected_card_selection_count() as usize;
+
+    let card_texts = screen_data
+        .cards
+        .iter()
+        .map(|card| card.as_str())
+        .take(expected_count)
+        .collect::<Vec<&str>>();
+    let matched_card_names =
+        card_matcher::find_card_name_matches(&data.card_index, &data.card_name_tokens, &card_texts);
+
     let matched_cards = matched_card_names
         .iter()
         .filter_map(|name| data.card_map.get(name))
@@ -402,8 +412,6 @@ fn get_draft_selection_text(data: &RuntimeData) -> Res<ScreenMatchedData> {
         .collect::<Vec<Card>>();
 
     if capture_opt.ocr_pick {
-        let expected_count =
-            DraftPick::new(pick_number).get_expected_card_selection_count() as usize;
         if expected_count != matched_cards.len() {
             return Err(format!(
                 "Expected {} cards, but found {} cards",

@@ -28,6 +28,15 @@ fn find_card(text: &str, card_index: &SearchIndex<String>) -> Option<String> {
     dbg!(&find_result);
 
     match find_result.len() {
+        multiple if multiple > 1 => {
+            // If there are multiple results, we want to find the one that is closest to the text
+            let nearest_result = find_result
+                .iter()
+                .map(|res| (res, levenshtein(text, res)))
+                .min_by_key(|(_, dist)| *dist)
+                .map(|(res, _)| res.clone());
+            nearest_result.cloned()
+        }
         1 => Some(find_result[0].clone()),
         _ => None,
     }

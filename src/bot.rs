@@ -188,7 +188,7 @@ async fn send_message(ctx: &Context, channel_id: ChannelId, msg: &str) {
     log(format!("Send to channel {}: {}", channel_id, msg));
 }
 
-async fn register_game_in_cache(ctx: &Context, user: &str, game_id: &str) {
+async fn register_game_in_cache(ctx: &Context, channel_id: u64, game_id: &str) {
     let cache_lock = {
         let data = ctx.data.read().await;
         data.get::<BotCache>()
@@ -199,14 +199,14 @@ async fn register_game_in_cache(ctx: &Context, user: &str, game_id: &str) {
     {
         let mut cache = cache_lock.write().await;
         cache
-            .entry(String::from(user))
+            .entry(channel_id.to_string())
             .and_modify(|e| *e = game_id.to_string())
             .or_insert(game_id.to_string());
     }
 }
 
-async fn own_game(ctx: &Context, user: &str, game_id: &str) -> Result<(), String> {
-    register_game_in_cache(ctx, user, game_id).await;
+async fn own_game(ctx: &Context, user: &str, channel_id: u64, game_id: &str) -> Result<(), String> {
+    register_game_in_cache(ctx, channel_id, game_id).await;
 
     let mut draft_game: DraftGame;
     match db_access::get_draft_game(game_id)
@@ -359,6 +359,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
     let mut reply = BotReply::new();
     let mut cmd_parts = args.splitn(2, char::is_whitespace);
     let cmd = cmd_parts.next();
+    let channel_id_number = channel_id.as_u64().to_owned();
 
     match cmd {
         Some(sub_cmd) => {
@@ -371,7 +372,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                 DRAFT_REG_CMD => {
                     let game_id = args;
 
-                    register_game_in_cache(&ctx, &user.name, game_id).await;
+                    register_game_in_cache(&ctx, channel_id_number, game_id).await;
 
                     reply.add(format!(
                         "Game [{}] is now registered to {}",
@@ -381,7 +382,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                 DRAFT_OWN_CMD => {
                     let game_id = args;
 
-                    match own_game(ctx, &user.name, game_id).await {
+                    match own_game(ctx, &user.name, channel_id_number, game_id).await {
                         Ok(_) => {
                             reply.add(format!(
                                 "Game [{}] is now owned by [{}]",
@@ -394,7 +395,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                     }
                 }
                 other => {
-                    let game_id = get_cached_data(&ctx, &user.name).await;
+                    let game_id = get_cached_data(&ctx, channel_id_number.to_string().as_ref()).await;
                     let game_id = match game_id {
                         Some(game_id) => {
                             reply.add(format!("Game [{}]", game_id));
@@ -402,7 +403,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             game_id
                         }
                         None => {
-                            reply.add(format!("No game is registered to [{}]", &user.name));
+                            reply.add(format!("No game is registered in this channel"));
 
                             send_message(&ctx, channel_id, &reply.to_string()).await;
                             return;
