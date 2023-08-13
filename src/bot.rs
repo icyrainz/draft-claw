@@ -13,6 +13,8 @@ use serenity::{
     prelude::*,
 };
 
+use itertools::Itertools;
+
 use crate::models::{card::*, draft_data::DraftPick};
 use crate::{app_context::AppContext, models::draft_game::DraftGame};
 use crate::{
@@ -137,14 +139,11 @@ async fn find_card_in_list(list: &[String], input_str: &str) -> Option<u8> {
     }
 }
 
-async fn get_card(ctx: &Context, input_str: &str) -> Result<Card, String> {
-    log(format!("Searching for card with string: {}", input_str));
-    let card_index = {
-        let data = ctx.data.read().await;
-        data.get::<BotCardIndex>()
-            .expect("Expected CardIndex in TypeMap.")
-            .clone()
-    };
+fn get_card_internal(
+    card_index: &Arc<SearchIndex<String>>,
+    card_data: &Arc<HashMap<String, Card>>,
+    input_str: &str,
+) -> Result<Card, String> {
     let search_result = card_index.search(input_str);
     let found_card_name: &str;
     match search_result.len() {
@@ -165,6 +164,22 @@ async fn get_card(ctx: &Context, input_str: &str) -> Result<Card, String> {
         }
     }
 
+    card_data.get(found_card_name).cloned().ok_or_else(|| {
+        format!(
+            "Card {} not found in data. Data contains {} cards",
+            found_card_name,
+            card_data.len()
+        )
+    })
+}
+
+async fn get_cards(ctx: &Context, input_strs: &[String]) -> Result<Vec<Card>, String> {
+    let card_index = {
+        let data = ctx.data.read().await;
+        data.get::<BotCardIndex>()
+            .expect("Expected CardIndex in TypeMap.")
+            .clone()
+    };
     let card_data = {
         let data = ctx.data.read().await;
         data.get::<BotCardData>()
@@ -172,12 +187,24 @@ async fn get_card(ctx: &Context, input_str: &str) -> Result<Card, String> {
             .clone()
     };
 
-    println!(
-        "Getting card {} from data {}",
-        found_card_name,
-        card_data.len()
-    );
-    Ok(card_data.get(found_card_name).cloned().unwrap())
+    input_strs.iter().fold(Ok(Vec::new()), |acc, input_str| {
+        let mut acc = acc?;
+        let card = get_card_internal(&card_index, &card_data, input_str)?;
+        acc.push(card);
+        Ok(acc)
+    })
+}
+
+async fn get_card(ctx: &Context, input_str: &str) -> Result<Card, String> {
+    get_cards(ctx, &[input_str.to_string()])
+        .await
+        .and_then(|mut v| {
+            if v.len() == 1 {
+                Ok(v.remove(0))
+            } else {
+                Err("No card found".to_string())
+            }
+        })
 }
 
 async fn send_message(ctx: &Context, channel_id: ChannelId, msg: &str) {
@@ -230,11 +257,22 @@ async fn own_game(ctx: &Context, user: &str, channel_id: u64, game_id: &str) -> 
     Ok(())
 }
 
-async fn get_decklist(game_id: &str) -> String {
+async fn get_decklist(ctx: &Context, game_id: &str) -> String {
     let deck_list = match db_access::get_decklist(game_id).await {
-        Ok(deck_list) => {
-            format!("{}", deck_list.join("\n"))
-        }
+        Ok(deck_list) => get_cards(ctx, &deck_list)
+            .await
+            .map(|cards| {
+                cards
+                    .into_iter()
+                    .sorted_by_key(|card| {
+                        (card.cost, card.influence.to_text(), card.influence.count())
+                    })
+                    .map(|card| format!("{}", card.to_text(CARD_TO_TEXT_OPT_NO_RARITY)))
+                    .collect::<Vec<String>>()
+                    .join("\n")
+                    .to_string()
+            })
+            .unwrap_or_else(|err| err.to_string()),
         _ => "No data".to_string(),
     };
 
@@ -395,7 +433,8 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                     }
                 }
                 other => {
-                    let game_id = get_cached_data(&ctx, channel_id_number.to_string().as_ref()).await;
+                    let game_id =
+                        get_cached_data(&ctx, channel_id_number.to_string().as_ref()).await;
                     let game_id = match game_id {
                         Some(game_id) => {
                             reply.add(format!("Game [{}]", game_id));
@@ -456,7 +495,7 @@ async fn process_draft_command(ctx: &Context, channel_id: ChannelId, user: User,
                             }
                         },
                         DRAFT_DECK_CMD => {
-                            reply.add_boxed(get_decklist(&game_id).await);
+                            reply.add_boxed(get_decklist(ctx, &game_id).await);
                         }
                         DRAFT_PIC_CMD => {
                             let msg = match get_last_pic(&game_id).await {
@@ -495,6 +534,8 @@ async fn process_card_command(ctx: &Context, channel_id: ChannelId, user: User, 
     let mut reply = BotReply::new();
 
     let card_name = args;
+
+    log(format!("Searching for card with string: {}", card_name));
     let find_card_result = get_card(&ctx, &card_name).await;
     match find_card_result {
         Ok(found_card) => {

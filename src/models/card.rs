@@ -30,6 +30,15 @@ pub struct CardInfluence {
     influences: Vec<Influence>,
 }
 
+impl CardInfluence {
+    pub fn count(&self) -> u8 {
+        self.influences.len() as u8
+    }
+    pub fn to_text(&self) -> String {
+        self.influences.iter().map(|i| format!("{}", i)).join("")
+    }
+}
+
 impl Display for CardInfluence {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         let mut influences_str = String::new();
@@ -85,13 +94,16 @@ impl<'de> Deserialize<'de> for CardType {
 
         let is_fast = tokens.contains(&"Fast");
 
-        let card_type = tokens.iter().filter_map(|token| {
-            if token == &"Fast" {
-                None
-            } else {
-                CardTypeEnum::from_str(token).ok()
-            }
-        }).collect();
+        let card_type = tokens
+            .iter()
+            .filter_map(|token| {
+                if token == &"Fast" {
+                    None
+                } else {
+                    CardTypeEnum::from_str(token).ok()
+                }
+            })
+            .collect();
 
         Ok(CardType { card_type, is_fast })
     }
@@ -137,26 +149,50 @@ fn no_card_text() -> String {
     String::from("No card text")
 }
 
+pub struct CardToTextOpt {
+    pub inclued_rarity: bool,
+}
+
+pub const CARD_TO_TEXT_OPT_DEFAULT: CardToTextOpt = CardToTextOpt {
+    inclued_rarity: true,
+};
+
+pub const CARD_TO_TEXT_OPT_NO_RARITY: CardToTextOpt = CardToTextOpt {
+    inclued_rarity: false,
+};
+
 impl Card {
-    pub fn to_text(&self) -> String {
-        let extra = match self.card_type.card_type.last().unwrap_or(&CardTypeEnum::None) {
-            CardTypeEnum::Unit | CardTypeEnum::Weapon => format!("{:>2}/{:>2}", self.attack, self.health),
+    pub fn to_text(&self, opt: CardToTextOpt) -> String {
+        let extra = match self
+            .card_type
+            .card_type
+            .last()
+            .unwrap_or(&CardTypeEnum::None)
+        {
+            CardTypeEnum::Unit | CardTypeEnum::Weapon => {
+                format!("{:>2}/{:>2}", self.attack, self.health)
+            }
             CardTypeEnum::Spell => {
                 if self.card_type.is_fast {
                     format!("{}", "FSpell")
                 } else {
                     format!("{}", "Spell")
                 }
-            },
+            }
             CardTypeEnum::Relic => format!("{}", "Relic"),
             CardTypeEnum::Site => format!("{}", "Site"),
             CardTypeEnum::Curse => format!("{}", "Curse"),
             _ => String::new(),
         };
-        format!(
-            "{} {}{:<6} {:30}{:>7}",
-            self.rarity, self.cost, self.influence, self.name, extra
-        )
+        let mut result = String::new();
+        if opt.inclued_rarity {
+            result.push_str(&format!("{} ", self.rarity));
+        }
+        result.push_str(&format!(
+            "{}{:<6} {:30}{:>7}",
+            self.cost, self.influence, self.name, extra
+        ));
+        result
     }
 }
 

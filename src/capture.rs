@@ -431,7 +431,7 @@ fn get_draft_selection_text(data: &RuntimeData) -> Res<ScreenMatchedData> {
             data.card_ratings
                 .get(&card.name)
                 .unwrap_or(&"NA".to_string()),
-            &card.to_text(),
+            &card.to_text(CARD_TO_TEXT_OPT_DEFAULT)
         ) + &"\n";
         draft_selection_text.push_str(&card_text);
         draft_selection_vec.push(card.name.to_string());
